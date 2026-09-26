@@ -1,0 +1,72 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+}
+
+model User {
+    id        String   @id @default(cuid())
+    name      String
+    email     String   @unique
+    password  String // bcrypt hash, never plain text
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    // Relations — one user has many transactions and budgets
+    transactions Transaction[]
+    budgets      Budget[]
+
+    @@map("users")
+}
+
+enum TransactionType {
+    DEBIT
+    CREDIT
+}
+
+enum Category {
+    FOOD
+    TRANSPORT
+    SHOPPING
+    ENTERTAINMENT
+    BILLS
+    HEALTH
+    EDUCATION
+    OTHER
+}
+
+model Transaction {
+    id        String          @id @default(cuid())
+    merchant  String
+    amount    Float
+    category  Category
+    type      TransactionType @default(DEBIT)
+    note      String? // optional field (nullable)
+    date      DateTime
+    receiptUrl String?          // optional: uploaded receipt image URL
+    createdAt DateTime        @default(now())
+
+    // Foreign key relation to User
+    userId String
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId, date]) // speeds up "this month's transactions" queries
+    @@map("transactions")
+}
+
+model Budget {
+    id        String   @id @default(cuid())
+    category  Category
+    limit     Float
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    userId String
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    // One budget per category per user — setting Food budget twice updates it
+    @@unique([userId, category])
+    @@map("budgets")
+}
