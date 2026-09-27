@@ -9,5 +9,6 @@ router.get("/", ctrl.getAll);
 router.get("/summary", ctrl.summary);
 router.post("/", ctrl.create);
 router.delete("/:id", ctrl.remove);
+router.get('/export.csv', ctrl.exportCsv);
 
 module.exports = router;

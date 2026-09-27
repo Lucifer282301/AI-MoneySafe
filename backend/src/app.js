@@ -6,7 +6,7 @@ const authRoutes = require("./routes/authRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const budgetRoutes = require("./routes/budgetRoutes");
 const aiRoutes = require("./routes/aiRoutes");
-// const errorHandler = require("./middleware/errorHandler");
+const errorHandler = require("./middleware/errorHandler");
 
 const app = express();
 
@@ -26,6 +26,6 @@ app.use("/api/budgets", budgetRoutes);
 app.use("/api/ai", aiRoutes);
 
 // Catch-all error handler — must be LAST
-// app.use(errorHandler);
+app.use(errorHandler);
 
 module.exports = app;
