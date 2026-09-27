@@ -5,7 +5,7 @@ const cors = require("cors");
 const authRoutes = require("./routes/authRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const budgetRoutes = require("./routes/budgetRoutes");
-// const aiRoutes = require("./routes/aiRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 // const errorHandler = require("./middleware/errorHandler");
 
 const app = express();
@@ -23,7 +23,7 @@ app.get("/", (req, res) => res.json({ status: "AI-MoneySafe API running ✓" }))
 app.use("/api/auth", authRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/budgets", budgetRoutes);
-// app.use("/api/ai", aiRoutes);
+app.use("/api/ai", aiRoutes);
 
 // Catch-all error handler — must be LAST
 // app.use(errorHandler);
