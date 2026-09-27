@@ -85,3 +85,22 @@ exports.summary = async (req, res) => {
 
   res.json({ total, count: txs.length, byCategory });
 };
+
+// GET /api/transactions/export.csv
+exports.exportCsv = async (req, res) => {
+  const txs = await prisma.transaction.findMany({
+    where: { userId: req.userId },
+    orderBy: { date: "desc" },
+  });
+
+  const header = "Date,Merchant,Category,Amount,Type,Note";
+  const rows = txs.map(
+    (t) =>
+      `${t.date.toISOString().split("T")[0]},"${t.merchant}",${t.category},${t.amount},${t.type},"${t.note || ""}"`,
+  );
+  const csv = [header, ...rows].join("\n");
+
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", "attachment; filename=transactions.csv");
+  res.send(csv);
+};
