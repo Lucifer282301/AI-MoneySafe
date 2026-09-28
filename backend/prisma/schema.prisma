@@ -6,26 +6,36 @@ datasource db {
     provider = "postgresql"
 }
 
+// ========================================== 
+// USER 
+// ==========================================
 model User {
-    id        String   @id @default(cuid())
-    name      String
-    email     String   @unique
-    password  String // bcrypt hash, never plain text
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    // Relations — one user has many transactions and budgets
-    transactions Transaction[]
-    budgets      Budget[]
+    id            String         @id @default(cuid())
+    name          String
+    email         String         @unique
+    password      String
+    createdAt     DateTime       @default(now())
+    updatedAt     DateTime       @updatedAt
+    // Expo push notification token 
+    pushToken     String?
+    transactions  Transaction[]
+    budgets       Budget[]
+    refreshTokens RefreshToken[]
 
     @@map("users")
 }
 
+// ========================================== 
+// TRANSACTION TYPE 
+// ==========================================
 enum TransactionType {
     DEBIT
     CREDIT
 }
 
+// ========================================== 
+// CATEGORY 
+// ==========================================
 enum Category {
     FOOD
     TRANSPORT
@@ -37,25 +47,31 @@ enum Category {
     OTHER
 }
 
+// ========================================== 
+// TRANSACTION 
+// ==========================================
 model Transaction {
-    id        String          @id @default(cuid())
-    merchant  String
-    amount    Float
-    category  Category
-    type      TransactionType @default(DEBIT)
-    note      String? // optional field (nullable)
-    date      DateTime
-    receiptUrl String?          // optional: uploaded receipt image URL
-    createdAt DateTime        @default(now())
+    id         String          @id @default(cuid())
+    merchant   String
+    amount     Float
+    category   Category
+    type       TransactionType @default(DEBIT)
+    note       String?
+    date       DateTime
+    receiptUrl String?
+    createdAt  DateTime        @default(now())
 
-    // Foreign key relation to User
     userId String
-    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    @@index([userId, date]) // speeds up "this month's transactions" queries
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId, date])
     @@map("transactions")
 }
 
+// ========================================== 
+// BUDGET 
+// ==========================================
 model Budget {
     id        String   @id @default(cuid())
     category  Category
@@ -64,9 +80,49 @@ model Budget {
     updatedAt DateTime @updatedAt
 
     userId String
-    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    // One budget per category per user — setting Food budget twice updates it
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    alerts BudgetAlert[]
+
+    // One budget per category per user 
     @@unique([userId, category])
     @@map("budgets")
+}
+
+// ========================================== 
+// BUDGET ALERT 
+// ==========================================
+model BudgetAlert {
+    id        String   @id @default(cuid())
+    budgetId  String
+    threshold Int
+    month     String
+    sentAt    DateTime @default(now())
+
+    budget Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+    // Example: 
+    // budgetId + 80 + 2026-09 
+    // budgetId + 100 + 2026-09 
+
+    // Same budget can receive alerts again 
+    // when a new month starts. 
+    @@unique([budgetId, threshold, month])
+    @@map("budget_alerts")
+}
+
+// ========================================== 
+// REFRESH TOKEN 
+// ==========================================
+model RefreshToken {
+    id        String   @id @default(cuid())
+    token     String   @unique
+    userId    String
+    expiresAt DateTime
+    createdAt DateTime @default(now())
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@map("refresh_tokens")
 }
