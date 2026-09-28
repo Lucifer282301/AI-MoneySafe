@@ -6,6 +6,7 @@ const {
   refresh,
   logout,
   savePushToken,
+  currency,
 } = require("../controllers/authController");
 
 const auth = require("../middleware/auth");
@@ -23,5 +24,10 @@ router.post("/logout", logout);
 // PROTECTED ROUTES
 // ==========================================
 router.post("/push-token", auth, savePushToken);
+
+// ==========================================
+// CURRENCY PREFERENCE
+// ==========================================
+router.patch("/currency", auth, currency);
 
 module.exports = router;
