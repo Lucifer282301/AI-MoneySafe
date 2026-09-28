@@ -14,10 +14,10 @@ model User {
     name          String
     email         String         @unique
     password      String
+    currency      String         @default("INR") // User's preferred/default currency  // ISO 4217: INR, USD, EUR, GBP...
     createdAt     DateTime       @default(now())
     updatedAt     DateTime       @updatedAt
-    // Expo push notification token 
-    pushToken     String?
+    pushToken     String? // Expo push notification token 
     transactions  Transaction[]
     budgets       Budget[]
     refreshTokens RefreshToken[]
@@ -51,19 +51,20 @@ enum Category {
 // TRANSACTION 
 // ==========================================
 model Transaction {
-    id         String          @id @default(cuid())
-    merchant   String
-    amount     Float
-    category   Category
-    type       TransactionType @default(DEBIT)
-    note       String?
-    date       DateTime
-    receiptUrl String?
-    createdAt  DateTime        @default(now())
-
-    userId String
-
-    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+    id           String          @id @default(cuid())
+    merchant     String
+    amount       Float // Original transaction amount
+    currency     String          @default("INR") // Currency in which transaction actually happened
+    amountBase   Float? // Amount converted to USD for reports/AI
+    exchangeRate Float?          @default(1.0) // Currency -> USD conversion rate
+    category     Category
+    type         TransactionType @default(DEBIT)
+    note         String?
+    date         DateTime
+    receiptUrl   String?
+    createdAt    DateTime        @default(now())
+    userId       String
+    user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
     @@index([userId, date])
     @@map("transactions")
@@ -73,17 +74,14 @@ model Transaction {
 // BUDGET 
 // ==========================================
 model Budget {
-    id        String   @id @default(cuid())
+    id        String        @id @default(cuid())
     category  Category
     limit     Float
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    userId String
-
-    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-    alerts BudgetAlert[]
+    createdAt DateTime      @default(now())
+    updatedAt DateTime      @updatedAt
+    userId    String
+    user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+    alerts    BudgetAlert[]
 
     // One budget per category per user 
     @@unique([userId, category])
@@ -99,15 +97,8 @@ model BudgetAlert {
     threshold Int
     month     String
     sentAt    DateTime @default(now())
+    budget    Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
 
-    budget Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
-
-    // Example: 
-    // budgetId + 80 + 2026-09 
-    // budgetId + 100 + 2026-09 
-
-    // Same budget can receive alerts again 
-    // when a new month starts. 
     @@unique([budgetId, threshold, month])
     @@map("budget_alerts")
 }
@@ -121,8 +112,7 @@ model RefreshToken {
     userId    String
     expiresAt DateTime
     createdAt DateTime @default(now())
-
-    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
     @@map("refresh_tokens")
 }

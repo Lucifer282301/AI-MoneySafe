@@ -1,4 +1,5 @@
 const prisma = require("../lib/prisma");
+const { toBaseCurrency } = require("../lib/exchangeRates");
 
 // GET /api/transactions?search=&category=&month=9&year=2026
 exports.getAll = async (req, res) => {
@@ -26,25 +27,74 @@ exports.getAll = async (req, res) => {
 
 // POST /api/transactions
 exports.create = async (req, res) => {
-  const { merchant, amount, category, type, note, date } = req.body;
+  try {
+    const { merchant, amount, category, type, note, date, currency } = req.body;
 
-  if (!merchant || !amount || !category || !date) {
-    return res.status(400).json({ error: "Missing required fields" });
+    // Validate required fields
+    if (!merchant || amount === undefined || !category || !date) {
+      return res.status(400).json({
+        error: "Missing required fields",
+      });
+    }
+
+    const parsedAmount = parseFloat(amount);
+
+    if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({
+        error: "Amount must be a valid positive number",
+      });
+    }
+
+    // Get user's preferred currency
+    const user = await prisma.user.findUnique({
+      where: {
+        id: req.userId,
+      },
+      select: {
+        currency: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        error: "User not found",
+      });
+    }
+
+    // Request currency > user's preference > INR
+    const currencyCode = (currency || user.currency || "INR")
+      .trim()
+      .toUpperCase();
+
+    // Convert original amount to USD
+    const { amountBase, rate } = await toBaseCurrency(
+      parsedAmount,
+      currencyCode,
+    );
+
+    const tx = await prisma.transaction.create({
+      data: {
+        merchant,
+        amount: parsedAmount, // Original amount
+        currency: currencyCode, // Original currency
+        amountBase, // USD normalized amount
+        exchangeRate: rate, // Currency -> USD rate
+        category: category.toUpperCase(),
+        type: (type || "DEBIT").toUpperCase(),
+        note: note || null,
+        date: new Date(date),
+        userId: req.userId,
+      },
+    });
+
+    return res.status(201).json(tx);
+  } catch (error) {
+    console.error("Create transaction error:", error);
+
+    return res.status(500).json({
+      error: "Failed to create transaction",
+    });
   }
-
-  const tx = await prisma.transaction.create({
-    data: {
-      merchant,
-      amount: parseFloat(amount),
-      category: category.toUpperCase(),
-      type: (type || "debit").toUpperCase(),
-      note: note || null,
-      date: new Date(date),
-      userId: req.userId, // from auth middleware
-    },
-  });
-
-  res.status(201).json(tx);
 };
 
 // DELETE /api/transactions/:id

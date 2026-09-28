@@ -258,3 +258,42 @@ exports.savePushToken = async (req, res) => {
     res.status(500).json({ error: "Failed to save push token" });
   }
 };
+
+// ==========================================
+// CURRENCY
+// PATCH /api/auth/currency
+// Body: { "currency": "USD" }
+// ==========================================
+exports.currency = async (req, res) => {
+  try {
+    const currency = req.body.currency?.trim().toUpperCase();
+
+    if (!currency) {
+      return res.status(400).json({
+        error: "Currency is required",
+      });
+    }
+
+    const user = await prisma.user.update({
+      where: {
+        id: req.userId,
+      },
+      data: {
+        currency,
+      },
+      select: {
+        currency: true,
+      },
+    });
+
+    return res.json({
+      currency: user.currency,
+    });
+  } catch (error) {
+    console.error("Update currency error:", error);
+
+    return res.status(500).json({
+      error: "Failed to update currency",
+    });
+  }
+};
