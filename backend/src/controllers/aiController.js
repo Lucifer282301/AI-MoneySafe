@@ -1,5 +1,6 @@
 const { GoogleGenAI } = require("@google/genai");
 const prisma = require("../lib/prisma");
+const { uploadReceipt } = require("../lib/cloudinary");
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -32,9 +33,7 @@ exports.extractReceipt = async (req, res) => {
 Parse this receipt/payment screenshot.
 
 Respond ONLY with valid JSON.
-
 Do not use markdown.
-
 Do not add explanations.
 
 {
@@ -48,22 +47,21 @@ Do not add explanations.
 Use ${today} if the date is not visible.
 `;
 
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: [
-        {
-          inlineData: {
-            data: image,
-            mimeType: mimeType,
-          },
-        },
-        {
-          text: prompt,
-        },
-      ],
-    });
+    // Run Gemini extraction and Cloudinary upload in parallel
+    const [geminiResult, receiptUrl] = await Promise.all([
+      ai.models.generateContent({
+        model: MODEL,
+        contents: [
+          { inlineData: { data: image, mimeType: mimeType } },
+          { text: prompt },
+        ],
+      }),
 
-    const text = response.text.trim();
+      uploadReceipt(image, req.userId),
+    ]);
+
+    // Get Gemini response
+    const text = geminiResult.text.trim();
 
     // Remove markdown code fences if Gemini adds them
     const cleaned = text
@@ -73,14 +71,17 @@ Use ${today} if the date is not visible.
 
     const parsed = JSON.parse(cleaned);
 
-    res.json(parsed);
+    // Return extracted data + Cloudinary URL
+    return res.json({
+      ...parsed,
+      receiptUrl,
+    });
   } catch (err) {
     console.error("Gemini Extraction Error:", err);
 
-    res.status(500).json({
-      error: "AI extraction failed",
-      message: err.message,
-    });
+    return res
+      .status(500)
+      .json({ error: "AI extraction failed", message: err.message });
   }
 };
 
