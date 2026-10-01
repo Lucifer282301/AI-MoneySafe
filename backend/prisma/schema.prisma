@@ -4,38 +4,14 @@ generator client {
 
 datasource db {
     provider = "postgresql"
+    url      = env("DATABASE_URL")
 }
 
-// ========================================== 
-// USER 
-// ==========================================
-model User {
-    id            String         @id @default(cuid())
-    name          String
-    email         String         @unique
-    password      String
-    currency      String         @default("INR") // User's preferred/default currency  // ISO 4217: INR, USD, EUR, GBP...
-    createdAt     DateTime       @default(now())
-    updatedAt     DateTime       @updatedAt
-    pushToken     String? // Expo push notification token 
-    transactions  Transaction[]
-    budgets       Budget[]
-    refreshTokens RefreshToken[]
-
-    @@map("users")
-}
-
-// ========================================== 
-// TRANSACTION TYPE 
-// ==========================================
 enum TransactionType {
     DEBIT
     CREDIT
 }
 
-// ========================================== 
-// CATEGORY 
-// ==========================================
 enum Category {
     FOOD
     TRANSPORT
@@ -47,72 +23,90 @@ enum Category {
     OTHER
 }
 
-// ========================================== 
-// TRANSACTION 
-// ==========================================
+model User {
+    id        String  @id @default(cuid())
+    name      String
+    email     String  @unique
+    password  String // bcrypt hash, never plain text
+    currency  String  @default("INR") // ISO 4217 code used for display
+    pushToken String? @unique
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    transactions  Transaction[]
+    budgets       Budget[]
+    refreshTokens RefreshToken[]
+
+    @@map("users")
+}
+
 model Transaction {
-    id           String          @id @default(cuid())
-    merchant     String
-    amount       Float // Original transaction amount
-    currency     String          @default("INR") // Currency in which transaction actually happened
-    amountBase   Float? // Amount converted to USD for reports/AI
-    exchangeRate Float?          @default(1.0) // Currency -> USD conversion rate
-    category     Category
-    type         TransactionType @default(DEBIT)
-    note         String?
-    date         DateTime
-    receiptUrl   String?
-    createdAt    DateTime        @default(now())
-    userId       String
-    user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+    id       String @id @default(cuid())
+    merchant String
+    amount   Float
+
+    currency     String @default("INR") // Original transaction currency
+    amountBase   Float? // Amount converted to user's base currency
+    exchangeRate Float? @default(1.0) // Original currency -> base currency rate
+
+    category   Category
+    type       TransactionType @default(DEBIT)
+    note       String?
+    date       DateTime // stored as UTC midnight of the chosen day
+    receiptUrl String?
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    userId String
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
     @@index([userId, date])
+    @@index([userId, category])
     @@map("transactions")
 }
 
-// ========================================== 
-// BUDGET 
-// ==========================================
 model Budget {
-    id        String        @id @default(cuid())
+    id        String   @id @default(cuid())
     category  Category
     limit     Float
-    createdAt DateTime      @default(now())
-    updatedAt DateTime      @updatedAt
-    userId    String
-    user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-    alerts    BudgetAlert[]
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
-    // One budget per category per user 
-    @@unique([userId, category])
+    userId String
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    alerts BudgetAlert[]
+
+    @@unique([userId, category]) // one budget per category per user
     @@map("budgets")
 }
 
-// ========================================== 
-// BUDGET ALERT 
-// ==========================================
 model BudgetAlert {
     id        String   @id @default(cuid())
     budgetId  String
     threshold Int
     month     String
     sentAt    DateTime @default(now())
-    budget    Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+    createdAt DateTime @default(now())
+
+    budget Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
 
     @@unique([budgetId, threshold, month])
+    @@index([budgetId])
     @@map("budget_alerts")
 }
 
-// ========================================== 
-// REFRESH TOKEN 
-// ==========================================
 model RefreshToken {
     id        String   @id @default(cuid())
-    token     String   @unique
-    userId    String
+    tokenHash String   @unique // SHA-256 of the token; the raw token is never stored
     expiresAt DateTime
     createdAt DateTime @default(now())
-    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+    userId String
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
     @@map("refresh_tokens")
 }

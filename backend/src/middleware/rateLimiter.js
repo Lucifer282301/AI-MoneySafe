@@ -1,52 +1,33 @@
 const rateLimit = require("express-rate-limit");
-const { ipKeyGenerator } = require("express-rate-limit");
 
-// ==========================================
-// AUTH RATE LIMITER
-// 10 login/signup attempts per 15 minutes
-// ==========================================
+const WINDOW = 15 * 60 * 1000;
+
+// Login/signup/refresh: 20 attempts per 15 minutes per IP
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  message: {
-    error: "Too many attempts. Please try again in 15 minutes.",
-  },
+  windowMs: WINDOW,
+  limit: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  message: { error: "Too many attempts. Please try again in 15 minutes." },
 });
 
-// ==========================================
-// AI RATE LIMITER
-// 30 AI requests per 15 minutes
-// ==========================================
+// AI calls cost quota: 30 per 15 minutes per logged-in user
 const aiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 30,
-  message: {
-    error: "AI request limit reached. Please wait a few minutes.",
-  },
-
-  // Use logged-in user ID.
-  // Fall back to IPv6-safe IP key.
-  keyGenerator: (req) => {
-    return req.userId || ipKeyGenerator(req.ip);
-  },
-});
-
-// ==========================================
-// GENERAL RATE LIMITER
-// 300 requests per 15 minutes per IP
-// ==========================================
-const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 300,
+  windowMs: WINDOW,
+  limit: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many requests. Please try again later." },
+  keyGenerator: (req) => req.userId || req.ip,
+  message: { error: "AI request limit reached. Please wait a few minutes." },
 });
 
-module.exports = {
-  authLimiter,
-  aiLimiter,
-  generalLimiter,
-};
+// Everything else: 600 per 15 minutes per IP
+const generalLimiter = rateLimit({
+  windowMs: WINDOW,
+  limit: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please slow down." },
+});
+
+module.exports = { authLimiter, aiLimiter, generalLimiter };

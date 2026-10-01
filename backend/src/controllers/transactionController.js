@@ -1,156 +1,159 @@
 const prisma = require("../lib/prisma");
-const { toBaseCurrency } = require("../lib/exchangeRates");
+const HttpError = require("../lib/httpError");
+const asyncHandler = require("../middleware/asyncHandler");
+const { monthRange, parseMonthYear, round2 } = require("../lib/dates");
+const {
+  parseCategory,
+  parseType,
+  parseAmount,
+  parseDate,
+  cleanText,
+  parseReceiptUrl,
+} = require("../lib/validate");
 
-// GET /api/transactions?search=&category=&month=9&year=2026
-exports.getAll = async (req, res) => {
-  const { search, category, month, year } = req.query;
+// Turns a request body into safe database fields (throws 400 if anything is invalid)
+function parsePayload(body = {}) {
+  const merchant = cleanText(body.merchant, 80);
+  if (!merchant) throw new HttpError(400, "Merchant is required");
 
-  const where = { userId: req.userId }; // always scoped to logged-in user
+  return {
+    merchant,
+    amount: parseAmount(body.amount),
+    category: parseCategory(body.category),
+    type: body.type ? parseType(body.type) : "DEBIT",
+    note: cleanText(body.note, 200) || null,
+    date: parseDate(body.date),
+    // undefined means "leave unchanged" on update
+    receiptUrl:
+      "receiptUrl" in body ? parseReceiptUrl(body.receiptUrl) : undefined,
+  };
+}
 
-  if (category) where.category = category.toUpperCase();
-  if (search) {
-    where.merchant = { contains: search, mode: "insensitive" };
+// GET /api/transactions?search=&category=&month=&year=&page=1&limit=30
+exports.getAll = asyncHandler(async (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 1), 100);
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+
+  const where = { userId: req.userId };
+  if (req.query.category) where.category = parseCategory(req.query.category);
+  if (req.query.search) {
+    where.merchant = {
+      contains: String(req.query.search).slice(0, 80),
+      mode: "insensitive",
+    };
   }
-  if (month && year) {
-    const start = new Date(year, month - 1, 1);
-    const end = new Date(year, month, 0, 23, 59, 59);
-    where.date = { gte: start, lte: end };
+  if (req.query.month || req.query.year) {
+    const { year, month } = parseMonthYear(req.query);
+    where.date = monthRange(year, month);
   }
 
-  const transactions = await prisma.transaction.findMany({
+  const items = await prisma.transaction.findMany({
     where,
-    orderBy: { date: "desc" },
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * limit,
+    take: limit,
   });
 
-  res.json(transactions);
-};
+  res.json(items);
+});
 
 // POST /api/transactions
-exports.create = async (req, res) => {
-  try {
-    const { merchant, amount, category, type, note, date, currency } = req.body;
+exports.create = asyncHandler(async (req, res) => {
+  const data = parsePayload(req.body);
+  const tx = await prisma.transaction.create({
+    data: { ...data, receiptUrl: data.receiptUrl ?? null, userId: req.userId },
+  });
+  res.status(201).json(tx);
+});
 
-    // Validate required fields
-    if (!merchant || amount === undefined || !category || !date) {
-      return res.status(400).json({
-        error: "Missing required fields",
-      });
-    }
+// PUT /api/transactions/:id
+exports.update = asyncHandler(async (req, res) => {
+  const existing = await prisma.transaction.findFirst({
+    where: { id: req.params.id, userId: req.userId },
+  });
+  if (!existing) throw new HttpError(404, "Transaction not found");
 
-    const parsedAmount = parseFloat(amount);
-
-    if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
-      return res.status(400).json({
-        error: "Amount must be a valid positive number",
-      });
-    }
-
-    // Get user's preferred currency
-    const user = await prisma.user.findUnique({
-      where: {
-        id: req.userId,
-      },
-      select: {
-        currency: true,
-      },
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        error: "User not found",
-      });
-    }
-
-    // Request currency > user's preference > INR
-    const currencyCode = (currency || user.currency || "INR")
-      .trim()
-      .toUpperCase();
-
-    // Convert original amount to USD
-    const { amountBase, rate } = await toBaseCurrency(
-      parsedAmount,
-      currencyCode,
-    );
-
-    const tx = await prisma.transaction.create({
-      data: {
-        merchant,
-        amount: parsedAmount, // Original amount
-        currency: currencyCode, // Original currency
-        amountBase, // USD normalized amount
-        exchangeRate: rate, // Currency -> USD rate
-        category: category.toUpperCase(),
-        type: (type || "DEBIT").toUpperCase(),
-        note: note || null,
-        date: new Date(date),
-        userId: req.userId,
-      },
-    });
-
-    return res.status(201).json(tx);
-  } catch (error) {
-    console.error("Create transaction error:", error);
-
-    return res.status(500).json({
-      error: "Failed to create transaction",
-    });
-  }
-};
+  const tx = await prisma.transaction.update({
+    where: { id: existing.id },
+    data: parsePayload(req.body),
+  });
+  res.json(tx);
+});
 
 // DELETE /api/transactions/:id
-exports.remove = async (req, res) => {
-  const { id } = req.params;
-
-  // Ensure the transaction belongs to the requesting user before deleting
-  const tx = await prisma.transaction.findFirst({
-    where: { id, userId: req.userId },
+exports.remove = asyncHandler(async (req, res) => {
+  const { count } = await prisma.transaction.deleteMany({
+    where: { id: req.params.id, userId: req.userId },
   });
-  if (!tx) return res.status(404).json({ error: "Transaction not found" });
-
-  await prisma.transaction.delete({ where: { id } });
+  if (count === 0) throw new HttpError(404, "Transaction not found");
   res.json({ success: true });
-};
+});
 
-// GET /api/transactions/summary — totals for dashboard
-exports.summary = async (req, res) => {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+// GET /api/transactions/summary?month=&year=   (defaults to the current month)
+exports.summary = asyncHandler(async (req, res) => {
+  const { year, month } = parseMonthYear(req.query);
+  const date = monthRange(year, month);
 
-  const txs = await prisma.transaction.findMany({
-    where: {
-      userId: req.userId,
-      type: "DEBIT",
-      date: { gte: start, lte: end },
-    },
-  });
+  const [debits, credits] = await Promise.all([
+    prisma.transaction.groupBy({
+      by: ["category"],
+      where: { userId: req.userId, type: "DEBIT", date },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+    prisma.transaction.aggregate({
+      where: { userId: req.userId, type: "CREDIT", date },
+      _sum: { amount: true },
+    }),
+  ]);
 
-  const total = txs.reduce((s, t) => s + t.amount, 0);
-
-  // Group totals by category
   const byCategory = {};
-  txs.forEach((t) => {
-    byCategory[t.category] = (byCategory[t.category] || 0) + t.amount;
-  });
+  let total = 0;
+  let count = 0;
+  for (const g of debits) {
+    const amount = g._sum.amount || 0;
+    byCategory[g.category] = round2(amount);
+    total += amount;
+    count += g._count._all;
+  }
 
-  res.json({ total, count: txs.length, byCategory });
-};
+  res.json({
+    total: round2(total),
+    income: round2(credits._sum.amount || 0),
+    count,
+    byCategory,
+    month,
+    year,
+  });
+});
+
+// Escape a value for CSV and neutralize spreadsheet formulas
+function csvCell(value) {
+  let s = value == null ? "" : String(value);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return `"${s.replace(/"/g, '""')}"`;
+}
 
 // GET /api/transactions/export.csv
-exports.exportCsv = async (req, res) => {
+exports.exportCsv = asyncHandler(async (req, res) => {
   const txs = await prisma.transaction.findMany({
     where: { userId: req.userId },
     orderBy: { date: "desc" },
   });
 
   const header = "Date,Merchant,Category,Amount,Type,Note";
-  const rows = txs.map(
-    (t) =>
-      `${t.date.toISOString().split("T")[0]},"${t.merchant}",${t.category},${t.amount},${t.type},"${t.note || ""}"`,
+  const rows = txs.map((t) =>
+    [
+      t.date.toISOString().slice(0, 10),
+      csvCell(t.merchant),
+      t.category,
+      t.amount,
+      t.type,
+      csvCell(t.note),
+    ].join(","),
   );
-  const csv = [header, ...rows].join("\n");
 
-  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", "attachment; filename=transactions.csv");
-  res.send(csv);
-};
+  res.send([header, ...rows].join("\n"));
+});
