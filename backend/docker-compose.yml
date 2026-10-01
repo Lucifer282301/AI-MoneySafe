@@ -1,22 +1,47 @@
 services:
   api:
-    build: .
+    build:
+      context: .
+    container_name: moneysafe-api
+    restart: unless-stopped
     ports:
       - "4000:4000"
-    env_file: .env
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://moneysafe:localdevpassword@db:5432/moneysafe?schema=public}
+      JWT_SECRET: ${JWT_SECRET}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   db:
     image: postgres:16-alpine
+    container_name: moneysafe-db
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: moneysafe
-      POSTGRES_PASSWORD: localdevpassword
-      POSTGRES_DB: moneysafe
+      POSTGRES_USER: ${POSTGRES_USER:-moneysafe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdevpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-moneysafe}
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-moneysafe} -d ${POSTGRES_DB:-moneysafe}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
-  pgdata:
+  postgres_data:
