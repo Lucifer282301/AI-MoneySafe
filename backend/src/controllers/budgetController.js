@@ -1,38 +1,34 @@
 const prisma = require("../lib/prisma");
+const HttpError = require("../lib/httpError");
+const asyncHandler = require("../middleware/asyncHandler");
+const { parseCategory, parseAmount } = require("../lib/validate");
 
-exports.getAll = async (req, res) => {
+exports.getAll = asyncHandler(async (req, res) => {
   const budgets = await prisma.budget.findMany({
     where: { userId: req.userId },
+    orderBy: { category: "asc" },
   });
   res.json(budgets);
-};
+});
 
-// POST /api/budgets — create OR update (upsert) a category budget
-exports.setBudget = async (req, res) => {
-  const { category, limit } = req.body;
-  if (!category || !limit) {
-    return res.status(400).json({ error: "category and limit required" });
-  }
+// POST /api/budgets — create or update the budget for a category
+exports.setBudget = asyncHandler(async (req, res) => {
+  const body = req.body || {};
+  const category = parseCategory(body.category);
+  const limit = parseAmount(body.limit);
 
   const budget = await prisma.budget.upsert({
-    where: {
-      // This composite key matches the @@unique in schema.prisma
-      userId_category: { userId: req.userId, category: category.toUpperCase() },
-    },
-    update: { limit: parseFloat(limit) }, // runs if a budget already exists
-    create: {
-      // runs if it doesn't
-      category: category.toUpperCase(),
-      limit: parseFloat(limit),
-      userId: req.userId,
-    },
+    where: { userId_category: { userId: req.userId, category } },
+    update: { limit },
+    create: { category, limit, userId: req.userId },
   });
-
   res.json(budget);
-};
+});
 
-exports.remove = async (req, res) => {
-  const { id } = req.params;
-  await prisma.budget.deleteMany({ where: { id, userId: req.userId } });
+exports.remove = asyncHandler(async (req, res) => {
+  const { count } = await prisma.budget.deleteMany({
+    where: { id: req.params.id, userId: req.userId },
+  });
+  if (count === 0) throw new HttpError(404, "Budget not found");
   res.json({ success: true });
-};
+});

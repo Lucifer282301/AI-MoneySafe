@@ -1,299 +1,157 @@
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
-const crypto = require("crypto");
-
 const prisma = require("../lib/prisma");
+const HttpError = require("../lib/httpError");
+const asyncHandler = require("../middleware/asyncHandler");
+const {
+  issueTokens,
+  rotateRefreshToken,
+  revokeRefreshToken,
+} = require("../lib/tokens");
+const { deleteUserReceipts } = require("../lib/cloudinary");
 
-// ==========================================
-// ACCESS TOKEN
-// Valid for 15 minutes
-// ==========================================
-function generateAccessToken(userId) {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: "15m" });
-}
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const CURRENCIES = [
+  "INR",
+  "USD",
+  "EUR",
+  "GBP",
+  "AED",
+  "AUD",
+  "CAD",
+  "SGD",
+  "JPY",
+];
+const BCRYPT_ROUNDS = 12;
+const DUMMY_HASH = bcrypt.hashSync("not-a-real-password", BCRYPT_ROUNDS);
 
-// ==========================================
-// REFRESH TOKEN
-// Valid for 30 days
-// ==========================================
-async function generateRefreshToken(userId) {
-  const token = crypto.randomBytes(40).toString("hex");
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  await prisma.refreshToken.create({ data: { token, userId, expiresAt } });
-  return token;
-}
+const publicUser = (u) => ({
+  id: u.id,
+  name: u.name,
+  email: u.email,
+  currency: u.currency,
+});
 
-// ==========================================
-// ISSUE ACCESS + REFRESH TOKENS
-// ==========================================
-async function issueTokens(userId) {
-  const accessToken = generateAccessToken(userId);
-  const refreshToken = await generateRefreshToken(userId);
-  return { accessToken, refreshToken };
-}
+exports.signup = asyncHandler(async (req, res) => {
+  const body = req.body || {};
+  const name = String(body.name || "")
+    .trim()
+    .slice(0, 80);
+  const email = String(body.email || "")
+    .trim()
+    .toLowerCase();
+  const password = String(body.password || "");
 
-// ==========================================
-// SIGNUP
-// POST /api/auth/signup
-// ==========================================
+  if (!name || !email || !password)
+    throw new HttpError(400, "All fields are required");
+  if (!EMAIL_RE.test(email))
+    throw new HttpError(400, "Enter a valid email address");
+  if (password.length < 8)
+    throw new HttpError(400, "Password must be at least 8 characters");
+  if (password.length > 72)
+    throw new HttpError(400, "Password must be 72 characters or fewer");
 
-exports.signup = async (req, res) => {
+  const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+  let user;
   try {
-    const { name, password } = req.body;
-    const email = req.body.email?.trim().toLowerCase();
-
-    if (!name || !email || !password) {
-      return res.status(400).json({
-        error: "All fields required",
-      });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({
-        error: "Password must be 6+ characters",
-      });
-    }
-
-    // Check existing user
-    const existing = await prisma.user.findUnique({
-      where: {
-        email,
-      },
-    });
-
-    if (existing) {
-      return res.status(409).json({
-        error: "Email already registered",
-      });
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-      },
-    });
-
-    // Generate access + refresh tokens
-    const { accessToken, refreshToken } = await issueTokens(user.id);
-
-    res.status(201).json({
-      accessToken,
-      refreshToken,
-
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-      },
+    user = await prisma.user.create({
+      data: { name, email, password: hashed },
     });
   } catch (err) {
-    console.error("Signup error:", err);
-
-    res.status(500).json({
-      error: "Signup failed",
-    });
+    if (err.code === "P2002")
+      throw new HttpError(409, "Email already registered");
+    throw err;
   }
-};
 
-// ==========================================
-// LOGIN
-// POST /api/auth/login
-// ==========================================
+  const tokens = await issueTokens(user.id);
+  res.status(201).json({ ...tokens, user: publicUser(user) });
+});
 
-exports.login = async (req, res) => {
-  try {
-    const { password } = req.body;
-    const email = req.body.email?.trim().toLowerCase();
+exports.login = asyncHandler(async (req, res) => {
+  const body = req.body || {};
+  const email = String(body.email || "")
+    .trim()
+    .toLowerCase();
+  const password = String(body.password || "");
 
-    if (!email || !password) {
-      return res.status(400).json({
-        error: "Email and password are required",
-      });
-    }
+  const user = await prisma.user.findUnique({ where: { email } });
+  // Always run bcrypt so timing doesn't reveal whether the email exists
+  const valid = await bcrypt.compare(
+    password,
+    user ? user.password : DUMMY_HASH,
+  );
+  if (!user || !valid) throw new HttpError(401, "Invalid email or password");
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: {
-        email,
-      },
-    });
+  const tokens = await issueTokens(user.id);
+  res.json({ ...tokens, user: publicUser(user) });
+});
 
-    if (!user) {
-      return res.status(401).json({
-        error: "Invalid email or password",
-      });
-    }
-
-    // Compare password
-    const valid = await bcrypt.compare(password, user.password);
-
-    if (!valid) {
-      return res.status(401).json({
-        error: "Invalid email or password",
-      });
-    }
-
-    // Generate access + refresh tokens
-    const { accessToken, refreshToken } = await issueTokens(user.id);
-
-    res.json({
-      accessToken,
-      refreshToken,
-
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-      },
-    });
-  } catch (err) {
-    console.error("Login error:", err);
-
-    res.status(500).json({
-      error: "Login failed",
-    });
+exports.refresh = asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body || {};
+  if (typeof refreshToken !== "string" || !refreshToken) {
+    throw new HttpError(400, "refreshToken is required");
   }
-};
+  const tokens = await rotateRefreshToken(refreshToken);
+  if (!tokens) throw new HttpError(401, "Refresh token invalid or expired");
+  res.json(tokens);
+});
 
-// ==========================================
-// REFRESH TOKEN
-// POST /api/auth/refresh
-// ==========================================
-
-exports.refresh = async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
-
-    if (!refreshToken) {
-      return res.status(401).json({
-        error: "No refresh token",
-      });
-    }
-
-    const saved = await prisma.refreshToken.findUnique({
-      where: {
-        token: refreshToken,
-      },
-    });
-
-    if (!saved || saved.expiresAt < new Date()) {
-      return res.status(401).json({
-        error: "Refresh token invalid or expired",
-      });
-    }
-
-    // Generate new access token
-    const accessToken = generateAccessToken(saved.userId);
-
-    res.json({
-      accessToken,
-    });
-  } catch (err) {
-    console.error("Refresh token error:", err);
-
-    res.status(500).json({
-      error: "Token refresh failed",
-    });
+exports.logout = asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body || {};
+  if (typeof refreshToken === "string" && refreshToken) {
+    await revokeRefreshToken(refreshToken);
   }
-};
+  res.json({ success: true });
+});
 
-// ==========================================
-// LOGOUT
-// POST /api/auth/logout
-// ==========================================
+exports.savePushToken = asyncHandler(async (req, res) => {
+  const pushToken = String((req.body || {}).pushToken || "").trim();
 
-exports.logout = async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
-
-    if (!refreshToken) {
-      return res.status(400).json({
-        error: "Refresh token is required",
-      });
-    }
-
-    await prisma.refreshToken.deleteMany({
-      where: {
-        token: refreshToken,
-      },
-    });
-
-    res.json({
-      success: true,
-      message: "Logged out successfully",
-    });
-  } catch (err) {
-    console.error("Logout error:", err);
-
-    res.status(500).json({
-      error: "Logout failed",
-    });
+  if (!pushToken) {
+    throw new HttpError(400, "Push token is required");
   }
-};
 
-// ==========================================
-// SAVE PUSH TOKEN
-// POST /api/auth/push-token
-// ==========================================
+  const user = await prisma.user.update({
+    where: { id: req.userId },
+    data: { pushToken },
+  });
 
-exports.savePushToken = async (req, res) => {
-  try {
-    const { pushToken } = req.body;
-    if (!pushToken) {
-      return res.status(400).json({ error: "Push token is required" });
-    }
-    await prisma.user.update({
-      where: { id: req.userId },
-      data: { pushToken },
-    });
-    res.json({ success: true });
-  } catch (err) {
-    console.error("Save push token error:", err);
-    res.status(500).json({ error: "Failed to save push token" });
+  res.json(publicUser(user));
+});
+
+exports.me = asyncHandler(async (req, res) => {
+  const user = await prisma.user.findUnique({ where: { id: req.userId } });
+  if (!user) throw new HttpError(404, "User not found");
+  res.json(publicUser(user));
+});
+
+exports.updateCurrency = asyncHandler(async (req, res) => {
+  const currency = String((req.body || {}).currency || "")
+    .trim()
+    .toUpperCase();
+  if (!CURRENCIES.includes(currency)) {
+    throw new HttpError(
+      400,
+      `Currency must be one of: ${CURRENCIES.join(", ")}`,
+    );
   }
-};
+  const user = await prisma.user.update({
+    where: { id: req.userId },
+    data: { currency },
+  });
+  res.json(publicUser(user));
+});
 
-// ==========================================
-// CURRENCY
-// PATCH /api/auth/currency
-// Body: { "currency": "USD" }
-// ==========================================
-exports.currency = async (req, res) => {
-  try {
-    const currency = req.body.currency?.trim().toUpperCase();
+exports.deleteAccount = asyncHandler(async (req, res) => {
+  const password = String((req.body || {}).password || "");
+  const user = await prisma.user.findUnique({ where: { id: req.userId } });
+  if (!user) throw new HttpError(404, "User not found");
 
-    if (!currency) {
-      return res.status(400).json({
-        error: "Currency is required",
-      });
-    }
+  const valid = await bcrypt.compare(password, user.password);
+  if (!valid) throw new HttpError(403, "Incorrect password");
 
-    const user = await prisma.user.update({
-      where: {
-        id: req.userId,
-      },
-      data: {
-        currency,
-      },
-      select: {
-        currency: true,
-      },
-    });
-
-    return res.json({
-      currency: user.currency,
-    });
-  } catch (error) {
-    console.error("Update currency error:", error);
-
-    return res.status(500).json({
-      error: "Failed to update currency",
-    });
-  }
-};
+  await deleteUserReceipts(user.id);
+  // Transactions, budgets and refresh tokens are removed by onDelete: Cascade
+  await prisma.user.delete({ where: { id: user.id } });
+  res.json({ success: true });
+});

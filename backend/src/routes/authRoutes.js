@@ -1,33 +1,17 @@
 const router = require("express").Router();
-
-const {
-  signup,
-  login,
-  refresh,
-  logout,
-  savePushToken,
-  currency,
-} = require("../controllers/authController");
-
 const auth = require("../middleware/auth");
 const { authLimiter } = require("../middleware/rateLimiter");
+const ctrl = require("../controllers/authController");
 
-// ==========================================
-// PUBLIC AUTH ROUTES
-// ==========================================
-router.post("/signup", authLimiter, signup);
-router.post("/login", authLimiter, login);
-router.post("/refresh", refresh);
-router.post("/logout", logout);
+router.post("/signup", authLimiter, ctrl.signup);
+router.post("/login", authLimiter, ctrl.login);
+router.post("/refresh", authLimiter, ctrl.refresh);
+router.post("/logout", ctrl.logout);
 
-// ==========================================
-// PROTECTED ROUTES
-// ==========================================
-router.post("/push-token", auth, savePushToken);
+router.post("/push-token", auth, ctrl.savePushToken);
 
-// ==========================================
-// CURRENCY PREFERENCE
-// ==========================================
-router.patch("/currency", auth, currency);
+router.get("/me", auth, ctrl.me);
+router.patch("/currency", auth, ctrl.updateCurrency);
+router.delete("/me", auth, ctrl.deleteAccount);
 
 module.exports = router;

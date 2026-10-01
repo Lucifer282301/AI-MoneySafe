@@ -1,21 +1,38 @@
 const cloudinary = require("cloudinary").v2;
+const env = require("../config/env");
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+if (env.cloudinaryEnabled) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+}
 
-// Upload a base64 image string, returns the hosted URL
-async function uploadReceipt(base64Image, userId) {
+// Upload a base64 image. Returns the HTTPS URL, or null if Cloudinary isn't configured.
+async function uploadReceipt(base64, mimeType, userId) {
+  if (!env.cloudinaryEnabled) return null;
   const result = await cloudinary.uploader.upload(
-    `data:image/jpeg;base64,${base64Image}`,
+    `data:${mimeType};base64,${base64}`,
     {
-      folder: `moneysafe/receipts/${userId}`, // organizes by user
+      folder: `moneysafe/receipts/${userId}`,
       resource_type: "image",
     },
   );
-  return result.secure_url; // permanent HTTPS URL
+  return result.secure_url;
 }
 
-module.exports = { uploadReceipt };
+// Best-effort cleanup when a user deletes their account
+async function deleteUserReceipts(userId) {
+  if (!env.cloudinaryEnabled) return;
+  try {
+    await cloudinary.api.delete_resources_by_prefix(
+      `moneysafe/receipts/${userId}/`,
+    );
+  } catch (err) {
+    console.error("Could not delete receipts:", err.message);
+  }
+}
+
+module.exports = { uploadReceipt, deleteUserReceipts };
