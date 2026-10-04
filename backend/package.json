@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
+    "budget-alerts": "node cron/runBudgetAlerts.js",
     "migrate:dev": "prisma migrate dev",
     "migrate": "prisma migrate deploy",
     "postinstall": "prisma generate"

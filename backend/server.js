@@ -1,37 +1,13 @@
 const env = require("./src/config/env");
 const app = require("./src/app");
 const prisma = require("./src/lib/prisma");
-const cron = require("node-cron");
+
 const { checkBudgetAlerts } = require("./src/lib/pushNotifications");
 
 const server = app.listen(env.port, () => {
   console.log(`✦ Server running on http://localhost:${env.port}`);
   console.log(`Environment: ${env.nodeEnv}`);
 });
-
-// --------------------------------------------------
-// Budget alert cron job
-// Runs every day at 9:00 AM India time
-// --------------------------------------------------
-
-cron.schedule(
-  "0 9 * * *",
-  async () => {
-    console.log("⏰ Running budget alert check...");
-
-    try {
-      await checkBudgetAlerts();
-      console.log("✅ Budget alert check completed");
-    } catch (error) {
-      console.error("❌ Budget alert check failed:", error);
-    }
-  },
-  {
-    timezone: "Asia/Kolkata",
-  },
-);
-
-console.log("⏰ Budget alert cron scheduled for 9:00 AM IST");
 
 // Remove expired refresh tokens once a day
 const cleanup = setInterval(
