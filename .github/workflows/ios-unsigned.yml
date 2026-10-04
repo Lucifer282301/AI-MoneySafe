@@ -1,0 +1,51 @@
+name: iOS build (unsigned IPA)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Install CocoaPods dependencies
+        run: |
+          cd ios
+          pod install
+
+      - name: Build for device (no signing)
+        run: |
+          xcodebuild \
+            -workspace ios/MoneySafeApp.xcworkspace \
+            -scheme MoneySafeApp \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package the .ipa
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/MoneySafeApp.app Payload/
+          zip -r MoneySafeApp.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MoneySafeApp-ipa
+          path: MoneySafeApp.ipa
+          retention-days: 7
