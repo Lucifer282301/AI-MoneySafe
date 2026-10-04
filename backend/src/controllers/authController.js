@@ -7,7 +7,7 @@ const {
   rotateRefreshToken,
   revokeRefreshToken,
 } = require("../lib/tokens");
-const { deleteUserReceipts } = require("../lib/cloudinary");
+const { deleteUserReceipts, uploadImage } = require("../lib/cloudinary");
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CURRENCIES = [
@@ -29,6 +29,78 @@ const publicUser = (u) => ({
   name: u.name,
   email: u.email,
   currency: u.currency,
+  avatarUrl: u.avatarUrl ?? null,
+});
+
+exports.updateProfile = asyncHandler(async (req, res) => {
+  const body = req.body || {};
+  const data = {};
+
+  if (Object.prototype.hasOwnProperty.call(body, "name")) {
+    const name = String(body.name || "").trim();
+    if (!name) throw new HttpError(400, "Name cannot be empty");
+    data.name = name.slice(0, 80);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "email")) {
+    const email = String(body.email || "")
+      .trim()
+      .toLowerCase();
+    if (!EMAIL_RE.test(email))
+      throw new HttpError(400, "Enter a valid email address");
+    data.email = email;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "avatarUrl")) {
+    const avatarUrl =
+      body.avatarUrl === null ? null : String(body.avatarUrl || "").trim();
+    if (avatarUrl === "") data.avatarUrl = null;
+    else if (avatarUrl !== undefined) data.avatarUrl = avatarUrl;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "avatarBase64")) {
+    const base64 = String(body.avatarBase64 || "").trim();
+    const mimeType = String(body.avatarMimeType || "image/jpeg").trim();
+
+    if (!base64) {
+      data.avatarUrl = null;
+    } else {
+      if (!mimeType.startsWith("image/")) {
+        throw new HttpError(400, "Image type is invalid");
+      }
+      const avatarUrl = await uploadImage(
+        base64,
+        mimeType,
+        req.userId,
+        "avatars",
+      );
+      if (!avatarUrl) {
+        throw new HttpError(
+          500,
+          "Profile image upload is not configured on this server",
+        );
+      }
+      data.avatarUrl = avatarUrl;
+    }
+  }
+
+  if (Object.keys(data).length === 0) {
+    throw new HttpError(400, "No profile changes were provided");
+  }
+
+  let user;
+  try {
+    user = await prisma.user.update({
+      where: { id: req.userId },
+      data,
+    });
+  } catch (err) {
+    if (err.code === "P2002")
+      throw new HttpError(409, "Email already registered");
+    throw err;
+  }
+
+  res.json(publicUser(user));
 });
 
 exports.signup = asyncHandler(async (req, res) => {

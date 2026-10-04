@@ -7,6 +7,7 @@ router.use(auth);
 // Fixed paths must come before "/:id"
 router.get("/summary", ctrl.summary);
 router.get("/export", ctrl.exportCsv);
+router.get("/export.csv", ctrl.exportCsv);
 
 router.get("/", ctrl.getAll);
 router.post("/", ctrl.create);

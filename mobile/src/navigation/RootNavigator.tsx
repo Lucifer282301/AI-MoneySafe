@@ -31,7 +31,7 @@ const Tab = createBottomTabNavigator<TabParamList>();
 // [selected icon, unselected icon]
 const TAB_ICONS: Record<keyof TabParamList, [string, string]> = {
   Home: ['home', 'home-outline'],
-  Transactions: ['receipt-text', 'receipt-text-outline'],
+  Transactions: ['clipboard-list', 'clipboard-list-outline'],
   Budgets: ['wallet', 'wallet-outline'],
   Chat: ['chat-processing', 'chat-processing-outline'],
   Profile: ['account-circle', 'account-circle-outline'],

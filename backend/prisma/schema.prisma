@@ -29,6 +29,7 @@ model User {
     email     String  @unique
     password  String // bcrypt hash, never plain text
     currency  String  @default("INR") // ISO 4217 code used for display
+    avatarUrl String?
     pushToken String? @unique
 
     createdAt DateTime @default(now())

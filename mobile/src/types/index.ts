@@ -15,6 +15,7 @@ export interface User {
   name: string;
   email: string;
   currency: string;
+  avatarUrl?: string | null;
 }
 
 export interface AuthResponse {
