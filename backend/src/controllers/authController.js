@@ -1,4 +1,5 @@
 const bcrypt = require("bcrypt");
+const { Expo } = require("expo-server-sdk");
 const prisma = require("../lib/prisma");
 const HttpError = require("../lib/httpError");
 const asyncHandler = require("../middleware/asyncHandler");
@@ -179,14 +180,22 @@ exports.logout = asyncHandler(async (req, res) => {
 exports.savePushToken = asyncHandler(async (req, res) => {
   const pushToken = String((req.body || {}).pushToken || "").trim();
 
-  if (!pushToken) {
-    throw new HttpError(400, "Push token is required");
+  if (!Expo.isExpoPushToken(pushToken)) {
+    throw new HttpError(400, "A valid Expo push token is required");
   }
 
-  const user = await prisma.user.update({
-    where: { id: req.userId },
-    data: { pushToken },
-  });
+  let user;
+  try {
+    user = await prisma.user.update({
+      where: { id: req.userId },
+      data: { pushToken },
+    });
+  } catch (error) {
+    if (error.code === "P2002") {
+      throw new HttpError(409, "This push token is already registered");
+    }
+    throw error;
+  }
 
   res.json(publicUser(user));
 });

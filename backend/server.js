@@ -2,8 +2,6 @@ const env = require("./src/config/env");
 const app = require("./src/app");
 const prisma = require("./src/lib/prisma");
 
-const { checkBudgetAlerts } = require("./src/lib/pushNotifications");
-
 const server = app.listen(env.port, () => {
   console.log(`✦ Server running on http://localhost:${env.port}`);
   console.log(`Environment: ${env.nodeEnv}`);
