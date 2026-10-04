@@ -1,28 +1,10 @@
 workflows:
-  android-debug:
-    name: AI-MoneySafe Android Debug
-    max_build_duration: 120
-    instance_type: mac_mini_m2
-    environment:
-      node: 22.11.0
-      java: 17
-    scripts:
-      - name: Install npm dependencies
-        script: |
-          cd "$CM_BUILD_DIR/mobile"
-          npm ci
-      - name: Configure Android SDK
-        script: |
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/mobile/android/local.properties"
-      - name: Build Android debug APK
-        script: |
-          cd "$CM_BUILD_DIR/mobile/android"
-          bash ./gradlew assembleDebug
-    artifacts:
-      - $CM_BUILD_DIR/mobile/android/app/build/outputs/apk/debug/*.apk
+  ios-simulator:
+    name: AI-MoneySafe iOS Simulator
 
-  ios-build:
-    name: AI-MoneySafe iOS Build
+    max_build_duration: 120
+
+    instance_type: mac_mini_m2
 
     environment:
       node: 22.11.0
@@ -32,22 +14,25 @@ workflows:
     scripts:
       - name: Install npm dependencies
         script: |
-          npm install
+          cd "$CM_BUILD_DIR/mobile"
+          npm ci
 
       - name: Install CocoaPods dependencies
         script: |
-          cd ios
+          cd "$CM_BUILD_DIR/mobile/ios"
           pod install
 
-      - name: Build iOS app
+      - name: Build iOS Simulator app
         script: |
           xcodebuild \
-            -workspace ios/mobile.xcworkspace \
+            -workspace "$CM_BUILD_DIR/mobile/ios/mobile.xcworkspace" \
             -scheme mobile \
-            -configuration Release \
-            -sdk iphoneos \
-            -archivePath $CM_BUILD_DIR/MoneySafe.xcarchive \
-            archive
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$CM_BUILD_DIR/build/ios" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
 
     artifacts:
-      - $CM_BUILD_DIR/MoneySafe.xcarchive
+      - $CM_BUILD_DIR/build/ios/Build/Products/Debug-iphonesimulator/*.app
