@@ -23,7 +23,7 @@ export default class ErrorBoundary extends React.Component<
   render() {
     if (!this.state.hasError) return this.props.children;
 
-    const dark = Appearance.getColorScheme() === 'dark';
+    const dark = (Appearance.getColorScheme() ?? 'light') === 'dark';
     return (
       <View
         style={[styles.wrap, { backgroundColor: dark ? '#0E1514' : '#F5F8F7' }]}

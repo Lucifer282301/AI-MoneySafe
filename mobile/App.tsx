@@ -21,7 +21,7 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 
 function Root() {
   const dispatch = useAppDispatch();
-  const system = useColorScheme();
+  const system = useColorScheme() ?? 'light';
   const mode = useAppSelector(s => s.settings.mode);
   const settingsLoaded = useAppSelector(s => s.settings.loaded);
   const { bootstrapped, signedIn } = useAppSelector(s => s.auth);
@@ -40,9 +40,11 @@ function Root() {
     if (signedIn) dispatch(fetchMe());
   }, [signedIn, dispatch]);
 
-  // Make native UI (alerts, keyboard, share sheet) follow the in-app choice
+  // Make native UI (alerts, keyboard, share sheet) follow the in-app choice.
+  // Avoid passing null to Android's Appearance API because it crashes there.
   useEffect(() => {
-    Appearance.setColorScheme(mode === 'system' ? null : mode);
+    if (mode === 'system') return;
+    Appearance.setColorScheme(mode);
   }, [mode]);
 
   const dark = mode === 'system' ? system === 'dark' : mode === 'dark';
@@ -65,10 +67,7 @@ function Root() {
 
   return (
     <PaperProvider theme={theme}>
-      <StatusBar
-        barStyle={dark ? 'light-content' : 'dark-content'}
-        backgroundColor={theme.colors.background}
-      />
+      <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} />
       <RootNavigator />
     </PaperProvider>
   );

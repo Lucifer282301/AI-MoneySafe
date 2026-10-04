@@ -13,6 +13,11 @@ export const store = configureStore({
     budgets: budgetsReducer,
     chat: chatReducer,
   },
+  middleware: getDefaultMiddleware =>
+    getDefaultMiddleware({
+      immutableCheck: { warnAfter: 200 },
+      serializableCheck: { warnAfter: 200 },
+    }),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

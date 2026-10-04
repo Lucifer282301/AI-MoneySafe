@@ -23,6 +23,19 @@ async function uploadReceipt(base64, mimeType, userId) {
   return result.secure_url;
 }
 
+async function uploadImage(base64, mimeType, userId, folder = "avatars") {
+  if (!env.cloudinaryEnabled) return null;
+  const result = await cloudinary.uploader.upload(
+    `data:${mimeType};base64,${base64}`,
+    {
+      folder: `moneysafe/${folder}/${userId}`,
+      resource_type: "image",
+      transformation: [{ quality: "auto", fetch_format: "auto" }],
+    },
+  );
+  return result.secure_url;
+}
+
 // Best-effort cleanup when a user deletes their account
 async function deleteUserReceipts(userId) {
   if (!env.cloudinaryEnabled) return;
@@ -35,4 +48,4 @@ async function deleteUserReceipts(userId) {
   }
 }
 
-module.exports = { uploadReceipt, deleteUserReceipts };
+module.exports = { uploadReceipt, uploadImage, deleteUserReceipts };

@@ -116,6 +116,26 @@ export const updateCurrency = createAsyncThunk<
   }
 });
 
+export const updateProfile = createAsyncThunk<
+  User,
+  {
+    name?: string;
+    email?: string;
+    avatarUrl?: string | null;
+    avatarBase64?: string;
+    avatarMimeType?: string;
+  },
+  { rejectValue: string }
+>('auth/updateProfile', async (payload, { rejectWithValue }) => {
+  try {
+    const { data } = await api.patch<User>('/auth/me', payload);
+    await AsyncStorage.setItem(USER_KEY, JSON.stringify(data));
+    return data;
+  } catch (e) {
+    return rejectWithValue(getErrorMessage(e));
+  }
+});
+
 export const deleteAccount = createAsyncThunk<
   void,
   string,
@@ -154,6 +174,9 @@ const authSlice = createSlice({
         state.user = action.payload;
       })
       .addCase(updateCurrency.fulfilled, (state, action) => {
+        state.user = action.payload;
+      })
+      .addCase(updateProfile.fulfilled, (state, action) => {
         state.user = action.payload;
       })
       .addMatcher(isAnyOf(logout.fulfilled, deleteAccount.fulfilled), state => {

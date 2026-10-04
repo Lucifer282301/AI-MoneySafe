@@ -11,6 +11,7 @@ router.post("/logout", ctrl.logout);
 router.post("/push-token", auth, ctrl.savePushToken);
 
 router.get("/me", auth, ctrl.me);
+router.patch("/me", auth, ctrl.updateProfile);
 router.patch("/currency", auth, ctrl.updateCurrency);
 router.delete("/me", auth, ctrl.deleteAccount);
 
