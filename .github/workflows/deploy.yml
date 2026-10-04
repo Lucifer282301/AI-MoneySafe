@@ -19,7 +19,7 @@ jobs:
         working-directory: backend
 
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL != '' && secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/moneysafe?schema=public' }}
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       DEPLOY_HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
@@ -37,13 +37,15 @@ jobs:
         run: npm ci
 
       - name: Validate Prisma schema
+        if: ${{ secrets.DATABASE_URL != '' }}
         run: npx prisma validate
 
       - name: Apply database migrations
+        if: ${{ secrets.DATABASE_URL != '' }}
         run: npx prisma migrate deploy
 
       - name: Trigger deploy hook
-        if: ${{ env.DEPLOY_HOOK_URL != '' }}
+        if: ${{ secrets.DEPLOY_HOOK_URL != '' }}
         env:
           DEPLOY_HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
         run: curl --fail --silent --show-error -X POST "$DEPLOY_HOOK_URL"
