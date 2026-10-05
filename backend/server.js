@@ -2,7 +2,7 @@ const env = require("./src/config/env");
 const app = require("./src/app");
 const prisma = require("./src/lib/prisma");
 
-const server = app.listen(env.port, () => {
+const server = app.listen(env.port, "0.0.0.0", () => {
   console.log(`✦ Server running on http://localhost:${env.port}`);
   console.log(`Environment: ${env.nodeEnv}`);
 });
