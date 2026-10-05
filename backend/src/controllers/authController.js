@@ -35,28 +35,62 @@ const publicUser = (u) => ({
 
 exports.updateProfile = asyncHandler(async (req, res) => {
   const body = req.body || {};
+  const user = await prisma.user.findUnique({ where: { id: req.userId } });
+
+  if (!user) {
+    throw new HttpError(404, "User not found");
+  }
+
   const data = {};
 
   if (Object.prototype.hasOwnProperty.call(body, "name")) {
-    const name = String(body.name || "").trim();
-    if (!name) throw new HttpError(400, "Name cannot be empty");
-    data.name = name.slice(0, 80);
+    const name = String(body.name || "")
+      .trim()
+      .slice(0, 80);
+
+    if (!name) {
+      throw new HttpError(400, "Name cannot be empty");
+    }
+
+    if (name !== user.name) {
+      data.name = name;
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "email")) {
     const email = String(body.email || "")
       .trim()
       .toLowerCase();
-    if (!EMAIL_RE.test(email))
+
+    if (!EMAIL_RE.test(email)) {
       throw new HttpError(400, "Enter a valid email address");
-    data.email = email;
+    }
+
+    if (email !== user.email) {
+      const valid = await bcrypt.compare(
+        String(body.currentPassword || ""),
+        user.password,
+      );
+
+      if (!valid) {
+        throw new HttpError(
+          403,
+          "Enter your current password to change your email",
+        );
+      }
+      data.email = email;
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "avatarUrl")) {
     const avatarUrl =
       body.avatarUrl === null ? null : String(body.avatarUrl || "").trim();
-    if (avatarUrl === "") data.avatarUrl = null;
-    else if (avatarUrl !== undefined) data.avatarUrl = avatarUrl;
+
+    if (avatarUrl === "") {
+      data.avatarUrl = null;
+    } else if (avatarUrl !== undefined) {
+      data.avatarUrl = avatarUrl;
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "avatarBase64")) {
@@ -75,6 +109,7 @@ exports.updateProfile = asyncHandler(async (req, res) => {
         req.userId,
         "avatars",
       );
+
       if (!avatarUrl) {
         throw new HttpError(
           500,
@@ -86,22 +121,60 @@ exports.updateProfile = asyncHandler(async (req, res) => {
   }
 
   if (Object.keys(data).length === 0) {
-    throw new HttpError(400, "No profile changes were provided");
+    return res.json(publicUser(user));
   }
 
-  let user;
   try {
-    user = await prisma.user.update({
-      where: { id: req.userId },
-      data,
-    });
+    const updated = await prisma.user.update({ where: { id: user.id }, data });
+    res.json(publicUser(updated));
   } catch (err) {
-    if (err.code === "P2002")
-      throw new HttpError(409, "Email already registered");
+    if (err.code === "P2002") {
+      throw new HttpError(409, "That email is already in use");
+    }
     throw err;
   }
+});
 
-  res.json(publicUser(user));
+exports.changePassword = asyncHandler(async (req, res) => {
+  const body = req.body || {};
+  const currentPassword = String(body.currentPassword || "");
+  const newPassword = String(body.newPassword || "");
+
+  if (newPassword.length < 8) {
+    throw new HttpError(400, "New password must be at least 8 characters");
+  }
+
+  if (newPassword.length > 72) {
+    throw new HttpError(400, "New password must be 72 characters or fewer");
+  }
+
+  if (newPassword === currentPassword) {
+    throw new HttpError(
+      400,
+      "New password must be different from the current one",
+    );
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: req.userId } });
+
+  if (!user) {
+    throw new HttpError(404, "User not found");
+  }
+
+  const valid = await bcrypt.compare(currentPassword, user.password);
+
+  if (!valid) {
+    throw new HttpError(403, "Current password is incorrect");
+  }
+
+  const hashed = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: user.id }, data: { password: hashed } }),
+    prisma.refreshToken.deleteMany({ where: { userId: user.id } }),
+  ]);
+
+  const tokens = await issueTokens(user.id);
+  res.json(tokens);
 });
 
 exports.signup = asyncHandler(async (req, res) => {

@@ -125,6 +125,7 @@ export const updateProfile = createAsyncThunk<
   {
     name?: string;
     email?: string;
+    currentPassword?: string;
     avatarUrl?: string | null;
     avatarBase64?: string;
     avatarMimeType?: string;
@@ -135,6 +136,26 @@ export const updateProfile = createAsyncThunk<
     const { data } = await api.patch<User>('/auth/me', payload);
     await AsyncStorage.setItem(USER_KEY, JSON.stringify(data));
     return data;
+  } catch (e) {
+    return rejectWithValue(getErrorMessage(e));
+  }
+});
+
+export const changePassword = createAsyncThunk<
+  void,
+  { currentPassword: string; newPassword: string },
+  { rejectValue: string }
+>('auth/changePassword', async (body, { rejectWithValue }) => {
+  try {
+    const { data } = await api.post<{
+      accessToken: string;
+      refreshToken: string;
+    }>('/auth/change-password', body);
+    // Other devices were signed out by the server; keep this one signed in with the new tokens
+    await saveSession({
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+    });
   } catch (e) {
     return rejectWithValue(getErrorMessage(e));
   }

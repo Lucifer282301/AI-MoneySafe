@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Switch } from 'react-native-paper'; // or add Switch to the existing react-native-paper import list
 import { disablePush, enablePush, isPushEnabled } from '../notifications/push';
 import { Alert, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { MainStackParamList } from '../navigation/types';
 import {
   CameraOptions,
   launchCamera,
@@ -48,6 +51,8 @@ const CURRENCIES = [
 export default function ProfileScreen() {
   const theme = useTheme();
   const dispatch = useAppDispatch();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const user = useAppSelector(s => s.auth.user);
   const mode = useAppSelector(s => s.settings.mode);
 
@@ -237,15 +242,11 @@ export default function ProfileScreen() {
     <Screen title="Profile">
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         <View style={styles.header}>
-          {user?.avatarUrl ? (
-            <Avatar.Image size={72} source={{ uri: user.avatarUrl }} />
-          ) : (
-            <Avatar.Text
-              label={(user?.name ?? '?').slice(0, 1).toUpperCase()}
-              size={72}
-              color={theme.colors.onPrimary}
-            />
-          )}
+          <Avatar.Text
+            label={(user?.name ?? '?').slice(0, 1).toUpperCase()}
+            size={72}
+            color={theme.colors.onPrimary}
+          />
           <Text variant="titleLarge" style={styles.name}>
             {user?.name}
           </Text>
@@ -255,6 +256,15 @@ export default function ProfileScreen() {
           >
             {user?.email}
           </Text>
+          <Button
+            mode="outlined"
+            icon="pencil-outline"
+            compact
+            style={{ marginTop: 12 }}
+            onPress={() => navigation.navigate('EditProfile')}
+          >
+            Edit profile
+          </Button>
         </View>
 
         <List.Section title="Appearance">

@@ -24,6 +24,7 @@ import BudgetsScreen from '../screens/BudgetsScreen';
 import ChatScreen from '../screens/ChatScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import { navigationRef } from './navigationRef';
+import EditProfileScreen from '../screens/EditProfileScreen';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const MainStack = createNativeStackNavigator<MainStackParamList>();
@@ -107,6 +108,15 @@ export default function RootNavigator() {
             options={{
               title: 'Add transaction',
               presentation: 'modal',
+              headerStyle: { backgroundColor: theme.colors.surface },
+              headerTintColor: theme.colors.onSurface,
+            }}
+          />
+          <MainStack.Screen
+            name="EditProfile"
+            component={EditProfileScreen}
+            options={{
+              title: 'Edit profile',
               headerStyle: { backgroundColor: theme.colors.surface },
               headerTintColor: theme.colors.onSurface,
             }}
