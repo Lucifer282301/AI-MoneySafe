@@ -67,17 +67,19 @@ export default function TransactionsScreen() {
 
   return (
     <Screen
-  title="Transactions"
-  right={
-    <Button
-      mode="contained"
-      icon="plus"
-      compact
-      accessibilityLabel="Add transaction"
-      onPress={() => navigation.navigate('TransactionForm')}>
-      Add
-    </Button>
-  }>
+      title="Transactions"
+      right={
+        <Button
+          mode="contained"
+          icon="plus"
+          compact
+          accessibilityLabel="Add transaction"
+          onPress={() => navigation.navigate('TransactionForm')}
+        >
+          Add
+        </Button>
+      }
+    >
       <View style={styles.search}>
         <Searchbar
           placeholder="Search merchant"
@@ -112,6 +114,17 @@ export default function TransactionsScreen() {
           ))}
         </ScrollView>
       </View>
+
+      <Text
+        variant="bodySmall"
+        style={{
+          paddingHorizontal: 20,
+          paddingBottom: 4,
+          color: theme.colors.onSurfaceVariant,
+        }}
+      >
+        Tap a transaction to edit it, hold to delete.
+      </Text>
 
       <FlatList
         data={items}

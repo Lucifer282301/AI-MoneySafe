@@ -18,4 +18,5 @@ export type MainStackParamList = {
   Tabs: { screen?: keyof TabParamList } | undefined;
   // Pass a transaction to edit it; omit to create a new one
   TransactionForm: { tx?: Transaction } | undefined;
+  EditProfile: undefined;
 };
