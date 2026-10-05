@@ -74,3 +74,10 @@ export interface ExtractedReceipt {
   note: string;
   receiptUrl?: string;
 }
+
+export interface TrendPoint {
+  year: number;
+  month: number;
+  expense: number;
+  income: number;
+}

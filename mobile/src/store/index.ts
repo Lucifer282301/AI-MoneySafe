@@ -4,6 +4,7 @@ import settingsReducer from './slices/settingsSlice';
 import transactionsReducer from './slices/transactionsSlice';
 import budgetsReducer from './slices/budgetsSlice';
 import chatReducer from './slices/chatSlice';
+import insightsReducer from './slices/insightsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     transactions: transactionsReducer,
     budgets: budgetsReducer,
     chat: chatReducer,
+    insights: insightsReducer,
   },
   middleware: getDefaultMiddleware =>
     getDefaultMiddleware({

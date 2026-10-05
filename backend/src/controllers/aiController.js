@@ -70,7 +70,7 @@ exports.extractReceipt = asyncHandler(async (req, res) => {
   let parsed;
   try {
     parsed = JSON.parse(aiResult.value.replace(/```json|```/g, "").trim());
-  } catch (err) {
+  } catch {
     throw new HttpError(422, "Couldn't read this image. Try a clearer photo.");
   }
 

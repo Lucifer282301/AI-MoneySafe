@@ -8,6 +8,7 @@ import {
   saveSession,
 } from '../../api/session';
 import type { AuthResponse, User } from '../../types';
+import { clearPushState, disablePush } from '../../notifications/push';
 
 const USER_KEY = 'moneysafe_user';
 
@@ -91,6 +92,9 @@ export const signup = createAsyncThunk<
 });
 
 export const logout = createAsyncThunk('auth/logout', async () => {
+  // Stop notifications to this phone while we still have a valid session
+  await disablePush().catch(() => undefined);
+
   const session = getSession();
   if (session) {
     // Best effort: revoke the refresh token on the server
@@ -145,6 +149,7 @@ export const deleteAccount = createAsyncThunk<
     await api.delete('/auth/me', { data: { password } });
     await clearSession();
     await AsyncStorage.removeItem(USER_KEY);
+    await clearPushState(); // the server already removed this account's tokens
   } catch (e) {
     return rejectWithValue(getErrorMessage(e));
   }

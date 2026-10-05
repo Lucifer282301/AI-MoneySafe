@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Chip, Searchbar, Text, useTheme } from 'react-native-paper';
+import { Button, Chip, Searchbar, Text, useTheme } from 'react-native-paper';
 
 import Screen from '../components/Screen';
 import TransactionItem from '../components/TransactionItem';
@@ -66,7 +66,18 @@ export default function TransactionsScreen() {
   };
 
   return (
-    <Screen title="Transactions">
+    <Screen
+  title="Transactions"
+  right={
+    <Button
+      mode="contained"
+      icon="plus"
+      compact
+      accessibilityLabel="Add transaction"
+      onPress={() => navigation.navigate('TransactionForm')}>
+      Add
+    </Button>
+  }>
       <View style={styles.search}>
         <Searchbar
           placeholder="Search merchant"

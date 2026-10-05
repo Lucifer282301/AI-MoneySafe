@@ -23,6 +23,7 @@ import TransactionFormScreen from '../screens/TransactionFormScreen';
 import BudgetsScreen from '../screens/BudgetsScreen';
 import ChatScreen from '../screens/ChatScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import { navigationRef } from './navigationRef';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const MainStack = createNativeStackNavigator<MainStackParamList>();
@@ -43,11 +44,12 @@ function Tabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: theme.colors.primary,
+        tabBarActiveTintColor: theme.colors.onSurface,
         tabBarInactiveTintColor: theme.colors.onSurfaceVariant,
         tabBarStyle: {
-          backgroundColor: theme.colors.elevation.level2,
+          backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.outlineVariant,
+          borderTopWidth: 1,
         },
         tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
         tabBarIcon: ({ focused, color, size }) => (
@@ -91,7 +93,7 @@ export default function RootNavigator() {
   };
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer ref={navigationRef} theme={navTheme}>
       {signedIn ? (
         <MainStack.Navigator>
           <MainStack.Screen

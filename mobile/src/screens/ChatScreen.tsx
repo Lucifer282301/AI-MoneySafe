@@ -3,12 +3,12 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   StyleSheet,
   View,
 } from 'react-native';
 import {
-  ActivityIndicator,
-  Chip,
+  Icon,
   IconButton,
   Text,
   TextInput,
@@ -18,12 +18,24 @@ import {
 import Screen from '../components/Screen';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { sendChat, userMessageAdded } from '../store/slices/chatSlice';
+import { useColors } from '../theme/useColors';
 import type { ChatMessage } from '../types';
 
 const SUGGESTIONS = [
   'How much did I spend this month?',
   'Which category costs me the most?',
+  'Am I on track with my budgets?',
+  'What was my biggest expense?',
 ];
+
+function AssistantAvatar() {
+  const colors = useColors();
+  return (
+    <View style={[styles.avatar, { backgroundColor: colors.heroBg }]}>
+      <Icon source="creation" size={14} color={colors.accent} />
+    </View>
+  );
+}
 
 export default function ChatScreen() {
   const theme = useTheme();
@@ -40,8 +52,20 @@ export default function ChatScreen() {
     dispatch(sendChat());
   };
 
+  const showSuggestions = messages.length === 1;
+
   return (
-    <Screen title="AI Chat">
+    <Screen
+      title="AI Assistant"
+      right={
+        <Text
+          variant="bodySmall"
+          style={{ color: theme.colors.onSurfaceVariant }}
+        >
+          Ask about your spending
+        </Text>
+      }
+    >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -57,63 +81,114 @@ export default function ChatScreen() {
           }
           renderItem={({ item }) => {
             const mine = item.role === 'user';
-            return (
-              <View
-                style={[
-                  styles.bubble,
-                  mine
-                    ? {
-                        alignSelf: 'flex-end',
-                        backgroundColor: theme.colors.primary,
-                      }
-                    : {
-                        alignSelf: 'flex-start',
-                        backgroundColor: theme.colors.surfaceVariant,
-                      },
-                ]}
-              >
-                <Text
-                  style={{
-                    color: mine
-                      ? theme.colors.onPrimary
-                      : theme.colors.onSurface,
-                  }}
+            if (mine) {
+              return (
+                <View
+                  style={[
+                    styles.bubble,
+                    styles.mine,
+                    { backgroundColor: theme.colors.primary },
+                  ]}
                 >
-                  {item.content}
-                </Text>
+                  <Text style={{ color: theme.colors.onPrimary }}>
+                    {item.content}
+                  </Text>
+                </View>
+              );
+            }
+            return (
+              <View style={styles.assistantRow}>
+                <AssistantAvatar />
+                <View
+                  style={[
+                    styles.bubble,
+                    styles.theirs,
+                    { backgroundColor: theme.colors.surfaceVariant },
+                  ]}
+                >
+                  <Text style={{ color: theme.colors.onSurface }}>
+                    {item.content}
+                  </Text>
+                </View>
               </View>
             );
           }}
           ListFooterComponent={
             <>
               {sending && (
-                <ActivityIndicator
-                  style={{ alignSelf: 'flex-start', margin: 12 }}
-                />
+                <View style={styles.assistantRow}>
+                  <AssistantAvatar />
+                  <View
+                    style={[
+                      styles.bubble,
+                      styles.theirs,
+                      { backgroundColor: theme.colors.surfaceVariant },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color: theme.colors.onSurfaceVariant,
+                        letterSpacing: 3,
+                      }}
+                    >
+                      •••
+                    </Text>
+                  </View>
+                </View>
               )}
               {error && (
-                <Text style={{ color: theme.colors.error, margin: 8 }}>
+                <Text
+                  style={{
+                    color: theme.colors.error,
+                    marginTop: 4,
+                    marginLeft: 4,
+                  }}
+                >
                   {error}
                 </Text>
+              )}
+              {showSuggestions && (
+                <View style={{ marginTop: 18 }}>
+                  <Text
+                    variant="labelMedium"
+                    style={{
+                      color: theme.colors.onSurfaceVariant,
+                      marginBottom: 4,
+                    }}
+                  >
+                    Try asking
+                  </Text>
+                  {SUGGESTIONS.map(s => (
+                    <Pressable
+                      key={s}
+                      accessibilityRole="button"
+                      onPress={() => send(s)}
+                      style={[
+                        styles.suggestion,
+                        {
+                          backgroundColor: theme.colors.surface,
+                          borderColor: theme.colors.outlineVariant,
+                        },
+                      ]}
+                    >
+                      <Icon
+                        source="lightbulb-outline"
+                        size={18}
+                        color={theme.colors.secondary}
+                      />
+                      <Text
+                        variant="bodyMedium"
+                        style={{ marginLeft: 10, flex: 1 }}
+                      >
+                        {s}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
               )}
             </>
           }
         />
-
-        {messages.length === 1 && (
-          <View style={styles.suggestions}>
-            {SUGGESTIONS.map(s => (
-              <Chip
-                key={s}
-                icon="lightbulb-outline"
-                onPress={() => send(s)}
-                style={{ marginRight: 8, marginBottom: 8 }}
-              >
-                {s}
-              </Chip>
-            ))}
-          </View>
-        )}
 
         <View style={styles.inputRow}>
           <TextInput
@@ -122,12 +197,15 @@ export default function ChatScreen() {
             value={text}
             onChangeText={setText}
             onSubmitEditing={() => send(text)}
+            returnKeyType="send"
+            outlineStyle={{ borderRadius: 24 }}
             style={styles.input}
             dense
           />
           <IconButton
             icon="send"
             mode="contained"
+            size={20}
             accessibilityLabel="Send message"
             containerColor={theme.colors.primary}
             iconColor={theme.colors.onPrimary}
@@ -141,12 +219,41 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  list: { padding: 16 },
-  bubble: { maxWidth: '82%', padding: 12, borderRadius: 18, marginBottom: 8 },
-  suggestions: {
+  list: { padding: 16, paddingBottom: 8 },
+  avatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  assistantRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
+    alignItems: 'flex-end',
+    marginBottom: 10,
+    maxWidth: '88%',
+  },
+  bubble: {
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    borderRadius: 18,
+    flexShrink: 1,
+  },
+  mine: {
+    alignSelf: 'flex-end',
+    marginBottom: 10,
+    maxWidth: '80%',
+    borderBottomRightRadius: 6,
+  },
+  theirs: { borderBottomLeftRadius: 6 },
+  suggestion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 12,
+    marginTop: 8,
   },
   inputRow: {
     flexDirection: 'row',

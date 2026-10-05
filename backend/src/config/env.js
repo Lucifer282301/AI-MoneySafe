@@ -43,4 +43,6 @@ module.exports = {
   ),
 
   corsOrigins: parseCsv(process.env.CORS_ORIGINS),
+
+  firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || '',
 };
