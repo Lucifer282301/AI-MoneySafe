@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "900631565101",
+    "project_id": "moneysafe-3693d",
+    "storage_bucket": "moneysafe-3693d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:900631565101:android:f2abee7b9bdd808714b9a4",
+        "android_client_info": {
+          "package_name": "com.yourname.moneysafe"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAWDFoxsgq41aq8VRSe2i0lZG9SCfLYjGQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

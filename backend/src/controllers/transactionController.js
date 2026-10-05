@@ -10,6 +10,7 @@ const {
   cleanText,
   parseReceiptUrl,
 } = require("../lib/validate");
+const { checkBudgetAfterExpense } = require("../lib/budgetAlerts");
 
 // Turns a request body into safe database fields (throws 400 if anything is invalid)
 function parsePayload(body = {}) {
@@ -63,6 +64,12 @@ exports.create = asyncHandler(async (req, res) => {
   const tx = await prisma.transaction.create({
     data: { ...data, receiptUrl: data.receiptUrl ?? null, userId: req.userId },
   });
+
+  // Fire and forget: never make the user wait for push delivery
+  checkBudgetAfterExpense(tx).catch((err) =>
+    console.error("Budget alert failed:", err.message),
+  );
+
   res.status(201).json(tx);
 });
 
@@ -77,6 +84,12 @@ exports.update = asyncHandler(async (req, res) => {
     where: { id: existing.id },
     data: parsePayload(req.body),
   });
+
+  // Compare spending before and after the edit.
+  // Never make the user wait for push delivery.
+  checkBudgetAfterExpense(tx, existing).catch((err) =>
+    console.error("Budget alert failed:", err.message),
+  );
   res.json(tx);
 });
 
@@ -125,6 +138,44 @@ exports.summary = asyncHandler(async (req, res) => {
     month,
     year,
   });
+});
+
+// GET /api/transactions/trend?months=6
+// Income and spending per month for the last N months (oldest first), used by the app's bar chart
+exports.trend = asyncHandler(async (req, res) => {
+  const count = Math.min(Math.max(parseInt(req.query.months, 10) || 6, 1), 12);
+  const now = new Date();
+
+  const months = Array.from({ length: count }, (_, i) => {
+    const d = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (count - 1 - i), 1),
+    );
+    return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 };
+  });
+
+  const points = await Promise.all(
+    months.map(async ({ year, month }) => {
+      const date = monthRange(year, month);
+      const [debit, credit] = await Promise.all([
+        prisma.transaction.aggregate({
+          where: { userId: req.userId, type: "DEBIT", date },
+          _sum: { amount: true },
+        }),
+        prisma.transaction.aggregate({
+          where: { userId: req.userId, type: "CREDIT", date },
+          _sum: { amount: true },
+        }),
+      ]);
+      return {
+        year,
+        month,
+        expense: round2(debit._sum.amount || 0),
+        income: round2(credit._sum.amount || 0),
+      };
+    }),
+  );
+
+  res.json(points);
 });
 
 // Escape a value for CSV and neutralize spreadsheet formulas

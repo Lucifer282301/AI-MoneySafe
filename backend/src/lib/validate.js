@@ -55,7 +55,7 @@ function parseReceiptUrl(value) {
     if (u.protocol === "https:" && u.hostname.endsWith("cloudinary.com")) {
       return value.slice(0, 500);
     }
-  } catch (e) {
+  } catch {
     // fall through
   }
   return null;

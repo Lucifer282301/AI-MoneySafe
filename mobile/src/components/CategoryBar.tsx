@@ -21,31 +21,41 @@ export default function CategoryBar({ category, spent, limit, total }: Props) {
   const meta = CATEGORY_META[category];
 
   const ratio = limit ? spent / limit : total ? spent / total : 0;
-  const color = limit
-    ? ratio >= 1
-      ? colors.danger
-      : ratio >= 0.8
-      ? colors.warning
-      : meta.color
-    : meta.color;
+  const over = !!limit && ratio >= 1;
+  const warn = !!limit && ratio >= 0.8 && !over;
+  const barColor = over ? colors.danger : warn ? colors.warning : meta.color;
+  const tagColor = over ? colors.danger : colors.warning;
 
   return (
     <View style={styles.row}>
-      <CategoryIcon category={category} size={36} />
+      <CategoryIcon category={category} size={40} />
       <View style={styles.body}>
         <View style={styles.row}>
           <Text variant="titleSmall" style={styles.flex}>
             {meta.label}
           </Text>
-          <Text variant="labelLarge" style={{ color: theme.colors.onSurface }}>
+          <Text
+            variant="labelMedium"
+            style={{ color: theme.colors.onSurfaceVariant }}
+          >
             {money(spent)}
             {limit ? ` / ${money(limit)}` : ''}
           </Text>
+          {(over || warn) && (
+            <View style={[styles.tag, { backgroundColor: tagColor + '26' }]}>
+              <Text
+                variant="labelSmall"
+                style={{ color: tagColor, fontWeight: '700' }}
+              >
+                {over ? 'Over' : `${Math.round(ratio * 100)}%`}
+              </Text>
+            </View>
+          )}
         </View>
         <ProgressBar
           progress={Math.min(ratio, 1)}
-          color={color}
-          style={styles.bar}
+          color={barColor}
+          style={[styles.bar, { backgroundColor: theme.colors.surfaceVariant }]}
         />
       </View>
     </View>
@@ -56,5 +66,11 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   body: { flex: 1, marginLeft: 12 },
   flex: { flex: 1 },
-  bar: { height: 8, borderRadius: 4, marginTop: 6 },
+  bar: { height: 6, borderRadius: 3, marginTop: 6 },
+  tag: {
+    marginLeft: 8,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
 });

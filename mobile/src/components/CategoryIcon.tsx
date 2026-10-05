@@ -6,7 +6,7 @@ import type { Category } from '../types';
 
 export default function CategoryIcon({
   category,
-  size = 40,
+  size = 44,
 }: {
   category: Category;
   size?: number;
@@ -17,13 +17,13 @@ export default function CategoryIcon({
       style={{
         width: size,
         height: size,
-        borderRadius: size / 2,
-        backgroundColor: meta.color + '2E',
+        borderRadius: size * 0.34,
+        backgroundColor: meta.color + '26',
         alignItems: 'center',
         justifyContent: 'center',
       }}
     >
-      <Icon source={meta.icon} size={size * 0.55} color={meta.color} />
+      <Icon source={meta.icon} size={size * 0.52} color={meta.color} />
     </View>
   );
 }

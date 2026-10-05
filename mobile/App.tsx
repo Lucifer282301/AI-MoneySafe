@@ -16,12 +16,13 @@ import { fetchMe, logout, restoreSession } from './src/store/slices/authSlice';
 import { loadSettings } from './src/store/slices/settingsSlice';
 import { setUnauthorizedHandler } from './src/api/client';
 import { darkTheme, lightTheme } from './src/theme/theme';
+import { usePushSetup } from './src/notifications/usePushSetup';
 import RootNavigator from './src/navigation/RootNavigator';
 import ErrorBoundary from './src/components/ErrorBoundary';
 
 function Root() {
   const dispatch = useAppDispatch();
-  const system = useColorScheme() ?? 'light';
+  const system = useColorScheme();
   const mode = useAppSelector(s => s.settings.mode);
   const settingsLoaded = useAppSelector(s => s.settings.loaded);
   const { bootstrapped, signedIn } = useAppSelector(s => s.auth);
@@ -40,11 +41,14 @@ function Root() {
     if (signedIn) dispatch(fetchMe());
   }, [signedIn, dispatch]);
 
-  // Make native UI (alerts, keyboard, share sheet) follow the in-app choice.
-  // Avoid passing null to Android's Appearance API because it crashes there.
+  // Push notifications: token refresh, foreground alerts and notification taps
+  usePushSetup(signedIn);
+
+  // Make native UI (alerts, keyboard, share sheet) follow the in-app choice
   useEffect(() => {
-    if (mode === 'system') return;
-    Appearance.setColorScheme(mode);
+    if (mode !== 'system') {
+      Appearance.setColorScheme(mode);
+    }
   }, [mode]);
 
   const dark = mode === 'system' ? system === 'dark' : mode === 'dark';
@@ -57,10 +61,13 @@ function Root() {
           flex: 1,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: system === 'dark' ? '#0E1514' : '#F5F8F7',
+          backgroundColor: system === 'dark' ? '#0B0D10' : '#F6F7F9',
         }}
       >
-        <ActivityIndicator size="large" color="#0F766E" />
+        <ActivityIndicator
+          size="large"
+          color={system === 'dark' ? '#F1F5F9' : '#0F172A'}
+        />
       </View>
     );
   }

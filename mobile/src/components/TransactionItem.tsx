@@ -34,14 +34,17 @@ export default function TransactionItem({ tx, onPress, onLongPress }: Props) {
         <Text variant="titleMedium" numberOfLines={1}>
           {tx.merchant}
         </Text>
-        <Text variant="bodySmall" style={{ color: theme.colors.outline }}>
+        <Text
+          variant="bodySmall"
+          style={{ color: theme.colors.onSurfaceVariant }}
+        >
           {CATEGORY_META[tx.category].label} · {formatDate(tx.date)}
         </Text>
       </View>
       <Text
         variant="titleMedium"
         style={{
-          color: isDebit ? colors.danger : colors.income,
+          color: isDebit ? theme.colors.onSurface : colors.income,
           fontWeight: '700',
         }}
       >
@@ -57,7 +60,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   body: { flex: 1, marginHorizontal: 12 },
 });

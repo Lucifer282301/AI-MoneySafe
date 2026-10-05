@@ -11,6 +11,7 @@ const authRoutes = require("./routes/authRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const budgetRoutes = require("./routes/budgetRoutes");
 const aiRoutes = require("./routes/aiRoutes");
+const deviceRoutes = require("./routes/deviceRoutes");
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use(express.json({ limit: "100kb" }));
 app.use("/api/auth", authRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/budgets", budgetRoutes);
+app.use("/api/devices", deviceRoutes);
 
 app.use(notFound);
 app.use(errorHandler); // must be last

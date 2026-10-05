@@ -10,13 +10,13 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   Button,
   HelperText,
-  Text,
   TextInput,
   useTheme,
 } from 'react-native-paper';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { clearError, signup } from '../store/slices/authSlice';
 import type { AuthStackParamList } from '../navigation/types';
+import AuthHeader from '../components/AuthHeader';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Signup'>;
 
@@ -60,15 +60,10 @@ export default function SignupScreen({ navigation }: Props) {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
-          <Text variant="headlineMedium" style={styles.title}>
-            Create account
-          </Text>
-          <Text
-            variant="bodyMedium"
-            style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}
-          >
-            Start tracking in under a minute
-          </Text>
+          <AuthHeader
+            title="Create account"
+            subtitle="Start tracking in under a minute"
+          />
 
           <TextInput
             label="Name"

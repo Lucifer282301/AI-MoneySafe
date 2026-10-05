@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { Switch } from 'react-native-paper'; // or add Switch to the existing react-native-paper import list
+import { disablePush, enablePush, isPushEnabled } from '../notifications/push';
 import { Alert, ScrollView, Share, StyleSheet, View } from 'react-native';
 import {
   CameraOptions,
@@ -67,6 +69,8 @@ export default function ProfileScreen() {
   const [password, setPassword] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
 
   useEffect(() => {
     if (profileOpen) {
@@ -77,6 +81,37 @@ export default function ProfileScreen() {
       setProfileError(null);
     }
   }, [profileOpen, user]);
+
+  useEffect(() => {
+    isPushEnabled().then(setPushOn);
+  }, []);
+
+  const togglePush = async (value: boolean) => {
+    setPushBusy(true);
+    try {
+      if (value) {
+        const result = await enablePush();
+        if (result === 'enabled') {
+          setPushOn(true);
+        } else if (result === 'denied') {
+          Alert.alert(
+            'Notifications are off',
+            'Allow notifications for MoneySafe in your phone settings, then try again.',
+          );
+        } else {
+          Alert.alert(
+            'Could not turn on alerts',
+            'Please check your connection and try again.',
+          );
+        }
+      } else {
+        await disablePush();
+        setPushOn(false);
+      }
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const pickProfilePhoto = async (source: 'camera' | 'gallery') => {
     const options: CameraOptions = {
@@ -208,6 +243,7 @@ export default function ProfileScreen() {
             <Avatar.Text
               label={(user?.name ?? '?').slice(0, 1).toUpperCase()}
               size={72}
+              color={theme.colors.onPrimary}
             />
           )}
           <Text variant="titleLarge" style={styles.name}>
@@ -241,6 +277,18 @@ export default function ProfileScreen() {
             description="Update your name, email and photo"
             left={p => <List.Icon {...p} icon="account-edit-outline" />}
             onPress={() => setProfileOpen(true)}
+          />
+          <List.Item
+            title="Budget alerts"
+            description="Notify me at 80% and 100% of a budget"
+            left={p => <List.Icon {...p} icon="bell-outline" />}
+            right={() => (
+              <Switch
+                value={pushOn}
+                onValueChange={togglePush}
+                disabled={pushBusy}
+              />
+            )}
           />
           <List.Item
             title="Currency"
@@ -323,8 +371,9 @@ export default function ProfileScreen() {
                 <Avatar.Image size={72} source={{ uri: profileImage }} />
               ) : (
                 <Avatar.Text
-                  label={(profileName || '?').slice(0, 1).toUpperCase()}
+                  label={(user?.name ?? '?').slice(0, 1).toUpperCase()}
                   size={72}
+                  color={theme.colors.onPrimary}
                 />
               )}
               <View style={styles.profileActions}>
