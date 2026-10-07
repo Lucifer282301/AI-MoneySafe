@@ -44,51 +44,69 @@ export default function AnimatedSplash({ ready, onFinish }: Props) {
     let animation: Animated.CompositeAnimation | undefined;
     let cancelled = false;
 
-    AccessibilityInfo.isReduceMotionEnabled().then(reduce => {
-      if (cancelled) return;
+    const startAnimation = async () => {
+      try {
+        const reduce = await Promise.resolve(
+          AccessibilityInfo.isReduceMotionEnabled
+            ? AccessibilityInfo.isReduceMotionEnabled()
+            : false,
+        );
 
-      if (reduce) {
-        // No movement: show the final state and leave sooner
+        if (cancelled) return;
+
+        if (reduce) {
+          // No movement: show the final state and leave sooner
+          check.setValue(1);
+          title.setValue(1);
+          tagline.setValue(1);
+          timer = setTimeout(() => setMinElapsed(true), 500);
+          return;
+        }
+
+        animation = Animated.parallel([
+          Animated.timing(check, {
+            toValue: 1,
+            duration: 550,
+            delay: 250,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+          }),
+          Animated.timing(ring, {
+            toValue: 1,
+            duration: 900,
+            delay: 700,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(title, {
+            toValue: 1,
+            duration: 450,
+            delay: 600,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(tagline, {
+            toValue: 1,
+            duration: 450,
+            delay: 800,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]);
+        animation?.start();
+        timer = setTimeout(() => setMinElapsed(true), MIN_DURATION);
+      } catch {
+        if (cancelled) return;
+
         check.setValue(1);
         title.setValue(1);
         tagline.setValue(1);
+        ring.setValue(1);
         timer = setTimeout(() => setMinElapsed(true), 500);
-        return;
       }
+    };
 
-      animation = Animated.parallel([
-        Animated.timing(check, {
-          toValue: 1,
-          duration: 550,
-          delay: 250,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: false,
-        }),
-        Animated.timing(ring, {
-          toValue: 1,
-          duration: 900,
-          delay: 700,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(title, {
-          toValue: 1,
-          duration: 450,
-          delay: 600,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(tagline, {
-          toValue: 1,
-          duration: 450,
-          delay: 800,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]);
-      animation.start();
-      timer = setTimeout(() => setMinElapsed(true), MIN_DURATION);
-    });
+    startAnimation();
 
     return () => {
       cancelled = true;
