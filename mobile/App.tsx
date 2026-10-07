@@ -1,11 +1,5 @@
-import React, { useEffect } from 'react';
-import {
-  ActivityIndicator,
-  Appearance,
-  StatusBar,
-  View,
-  useColorScheme,
-} from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Appearance, StatusBar, View, useColorScheme } from 'react-native';
 import { Provider } from 'react-redux';
 import { PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -16,9 +10,11 @@ import { fetchMe, logout, restoreSession } from './src/store/slices/authSlice';
 import { loadSettings } from './src/store/slices/settingsSlice';
 import { setUnauthorizedHandler } from './src/api/client';
 import { darkTheme, lightTheme } from './src/theme/theme';
+import { BRAND_INK } from './src/config/brand';
 import { usePushSetup } from './src/notifications/usePushSetup';
 import RootNavigator from './src/navigation/RootNavigator';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import AnimatedSplash from './src/components/AnimatedSplash';
 
 function Root() {
   const dispatch = useAppDispatch();
@@ -26,6 +22,7 @@ function Root() {
   const mode = useAppSelector(s => s.settings.mode);
   const settingsLoaded = useAppSelector(s => s.settings.loaded);
   const { bootstrapped, signedIn } = useAppSelector(s => s.auth);
+  const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => {
     // Called by the API client when a refresh token is rejected
@@ -46,37 +43,34 @@ function Root() {
 
   // Make native UI (alerts, keyboard, share sheet) follow the in-app choice
   useEffect(() => {
-    if (mode !== 'system') {
-      Appearance.setColorScheme(mode);
+    const colorScheme = mode === 'system' ? system : mode;
+    if (colorScheme === 'light' || colorScheme === 'dark') {
+      Appearance.setColorScheme(colorScheme);
     }
-  }, [mode]);
+  }, [mode, system]);
 
+  const ready = settingsLoaded && bootstrapped;
   const dark = mode === 'system' ? system === 'dark' : mode === 'dark';
   const theme = dark ? darkTheme : lightTheme;
 
-  if (!settingsLoaded || !bootstrapped) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: system === 'dark' ? '#0B0D10' : '#F6F7F9',
-        }}
-      >
-        <ActivityIndicator
-          size="large"
-          color={system === 'dark' ? '#F1F5F9' : '#0F172A'}
-        />
-      </View>
-    );
-  }
-
   return (
-    <PaperProvider theme={theme}>
-      <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} />
-      <RootNavigator />
-    </PaperProvider>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: ready ? theme.colors.background : BRAND_INK,
+      }}
+    >
+      {ready && (
+        <PaperProvider theme={theme}>
+          <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} />
+          <RootNavigator />
+        </PaperProvider>
+      )}
+
+      {!splashDone && (
+        <AnimatedSplash ready={ready} onFinish={() => setSplashDone(true)} />
+      )}
+    </View>
   );
 }
 
