@@ -7,16 +7,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import {
-  Button,
-  HelperText,
-  TextInput,
-  useTheme,
-} from 'react-native-paper';
+import { Button, HelperText, TextInput, useTheme } from 'react-native-paper';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { clearError, login } from '../store/slices/authSlice';
 import type { AuthStackParamList } from '../navigation/types';
 import AuthHeader from '../components/AuthHeader';
+import { APP_NAME } from '../config/brand';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
@@ -48,7 +44,7 @@ export default function LoginScreen({ navigation }: Props) {
           keyboardShouldPersistTaps="handled"
         >
           <AuthHeader
-            title="AI-MoneySafe"
+            title={APP_NAME}
             subtitle="Sign in to track your spending"
           />
 
