@@ -17,8 +17,19 @@ export const fetchBudgets = createAsyncThunk<
   { rejectValue: string }
 >('budgets/fetch', async (_, { rejectWithValue }) => {
   try {
-    const { data } = await api.get<Budget[]>('/budgets');
-    return data;
+    const { data } = await api.get<{
+      categories: Array<{
+        id: string | null;
+        category: Category;
+        limit: number | null;
+      }>;
+    }>('/budgets');
+    if (!Array.isArray(data.categories)) {
+      throw new Error('Unexpected budgets response');
+    }
+    return data.categories.flatMap(({ id, category, limit }) =>
+      id && limit !== null && limit > 0 ? [{ id, category, limit }] : [],
+    );
   } catch (e) {
     return rejectWithValue(getErrorMessage(e));
   }
@@ -38,13 +49,13 @@ export const saveBudget = createAsyncThunk<
 });
 
 export const deleteBudget = createAsyncThunk<
-  string,
-  string,
+  { category: Category },
+  { category: Category; period: string },
   { rejectValue: string }
->('budgets/delete', async (id, { rejectWithValue }) => {
+>('budgets/delete', async ({ category, period }, { rejectWithValue }) => {
   try {
-    await api.delete(`/budgets/${id}`);
-    return id;
+    await api.delete('/budgets', { params: { category, period } });
+    return { category };
   } catch (e) {
     return rejectWithValue(getErrorMessage(e));
   }
@@ -75,7 +86,9 @@ const budgetsSlice = createSlice({
         else state.items.push(action.payload);
       })
       .addCase(deleteBudget.fulfilled, (state, action) => {
-        state.items = state.items.filter(b => b.id !== action.payload);
+        state.items = state.items.filter(
+          b => b.category !== action.payload.category,
+        );
       })
       .addCase(logout.fulfilled, () => initialState)
       .addCase(deleteAccount.fulfilled, () => initialState);

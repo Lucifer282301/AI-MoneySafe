@@ -15,6 +15,7 @@ import {
   Avatar,
   Button,
   Dialog,
+  Divider,
   HelperText,
   List,
   Portal,
@@ -26,6 +27,7 @@ import {
 } from 'react-native-paper';
 
 import Screen from '../components/Screen';
+import SectionCard from '../components/SectionCard';
 import { api, getErrorMessage } from '../api/client';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
@@ -204,7 +206,7 @@ export default function ProfileScreen() {
   const exportCsv = async () => {
     setExporting(true);
     try {
-      const { data } = await api.get<string>('/transactions/export', {
+      const { data } = await api.get<string>('/transactions/export.csv', {
         responseType: 'text',
       });
       await Share.share({
@@ -239,55 +241,108 @@ export default function ProfileScreen() {
   };
 
   return (
-    <Screen title="Profile">
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-        <View style={styles.header}>
-          <Avatar.Text
-            label={(user?.name ?? '?').slice(0, 1).toUpperCase()}
-            size={72}
-            color={theme.colors.onPrimary}
-          />
-          <Text variant="titleLarge" style={styles.name}>
-            {user?.name}
-          </Text>
-          <Text
-            variant="bodyMedium"
-            style={{ color: theme.colors.onSurfaceVariant }}
-          >
-            {user?.email}
+    <Screen
+      title="Profile"
+      style={{
+        backgroundColor: theme.dark ? theme.colors.background : '#F7F6F1',
+      }}
+    >
+      <ScrollView contentContainerStyle={styles.content}>
+        <View
+          style={[
+            styles.hero,
+            { backgroundColor: theme.dark ? '#18372F' : '#123B30' },
+          ]}
+        >
+          <View style={styles.identity}>
+            {user?.avatarUrl ? (
+              <Avatar.Image size={64} source={{ uri: user.avatarUrl }} />
+            ) : (
+              <Avatar.Text
+                label={(user?.name ?? '?').slice(0, 1).toUpperCase()}
+                size={64}
+                color={theme.dark ? '#18372F' : '#123B30'}
+                style={{
+                  backgroundColor: theme.dark ? '#9ADFC0' : '#BDE8D0',
+                }}
+              />
+            )}
+            <View style={styles.identityText}>
+              <Text variant="titleLarge" style={styles.name}>
+                {user?.name}
+              </Text>
+              <Text variant="bodyMedium" style={styles.email}>
+                {user?.email}
+              </Text>
+            </View>
+          </View>
+          <Text variant="bodySmall" style={styles.heroCopy}>
+            Your account details and preferences, all in one place.
           </Text>
           <Button
             mode="outlined"
             icon="pencil-outline"
             compact
-            style={{ marginTop: 12 }}
+            textColor="#FFFFFF"
+            style={styles.heroButton}
             onPress={() => navigation.navigate('EditProfile')}
           >
             Edit profile
           </Button>
         </View>
 
-        <List.Section title="Appearance">
-          <View style={styles.padded}>
-            <SegmentedButtons
-              value={mode}
-              onValueChange={v => dispatch(setThemeMode(v as ThemeMode))}
-              buttons={[
-                { value: 'system', label: 'System', icon: 'cellphone' },
-                { value: 'light', label: 'Light', icon: 'white-balance-sunny' },
-                { value: 'dark', label: 'Dark', icon: 'weather-night' },
-              ]}
-            />
-          </View>
-        </List.Section>
+        <SectionCard title="Appearance" style={styles.section}>
+          <Text
+            variant="bodySmall"
+            style={[
+              styles.sectionCopy,
+              { color: theme.colors.onSurfaceVariant },
+            ]}
+          >
+            Choose how MoneySafe looks on this device.
+          </Text>
+          <SegmentedButtons
+            value={mode}
+            onValueChange={v => dispatch(setThemeMode(v as ThemeMode))}
+            buttons={[
+              { value: 'system', label: 'System', icon: 'cellphone' },
+              { value: 'light', label: 'Light', icon: 'white-balance-sunny' },
+              { value: 'dark', label: 'Dark', icon: 'weather-night' },
+            ]}
+          />
+        </SectionCard>
 
-        <List.Section title="Preferences">
+        <SectionCard title="Preferences" style={styles.section}>
+          <Text
+            variant="bodySmall"
+            style={[
+              styles.sectionCopy,
+              { color: theme.colors.onSurfaceVariant },
+            ]}
+          >
+            Adjust how you receive updates and view your activity.
+          </Text>
           <List.Item
             title="Edit profile"
             description="Update your name, email and photo"
             left={p => <List.Icon {...p} icon="account-edit-outline" />}
             onPress={() => setProfileOpen(true)}
           />
+          <Divider style={styles.divider} />
+          <List.Item
+            title="Accounts & balances"
+            description="Manage the balances used in your money overview"
+            left={p => <List.Icon {...p} icon="bank-outline" />}
+            onPress={() => navigation.navigate('Accounts')}
+          />
+          <Divider style={styles.divider} />
+          <List.Item
+            title="Monthly budgets"
+            description="Manage your category limits"
+            left={p => <List.Icon {...p} icon="wallet-outline" />}
+            onPress={() => navigation.navigate('Budgets')}
+          />
+          <Divider style={styles.divider} />
           <List.Item
             title="Budget alerts"
             description="Notify me at 80% and 100% of a budget"
@@ -300,12 +355,14 @@ export default function ProfileScreen() {
               />
             )}
           />
+          <Divider style={styles.divider} />
           <List.Item
             title="Currency"
             description={user?.currency}
             left={p => <List.Icon {...p} icon="cash" />}
             onPress={() => setCurrencyOpen(true)}
           />
+          <Divider style={styles.divider} />
           <List.Item
             title="Export transactions (CSV)"
             description="Share or save all your data"
@@ -313,14 +370,24 @@ export default function ProfileScreen() {
             onPress={exportCsv}
             disabled={exporting}
           />
-        </List.Section>
+        </SectionCard>
 
-        <List.Section title="Account">
+        <SectionCard title="Account" style={styles.section}>
+          <Text
+            variant="bodySmall"
+            style={[
+              styles.sectionCopy,
+              { color: theme.colors.onSurfaceVariant },
+            ]}
+          >
+            Manage your sign-in and account lifecycle.
+          </Text>
           <List.Item
             title="Log out"
             left={p => <List.Icon {...p} icon="logout" />}
             onPress={confirmLogout}
           />
+          <Divider style={styles.divider} />
           <List.Item
             title="Delete account"
             description="Permanently remove your account and data"
@@ -334,7 +401,7 @@ export default function ProfileScreen() {
             )}
             onPress={() => setDeleteOpen(true)}
           />
-        </List.Section>
+        </SectionCard>
       </ScrollView>
 
       <Portal>
@@ -501,9 +568,21 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: 'center', paddingVertical: 24 },
-  name: { marginTop: 12, fontWeight: '700' },
-  padded: { paddingHorizontal: 20 },
+  content: { padding: 20, paddingBottom: 40 },
+  hero: { borderRadius: 26, padding: 20, marginBottom: 4 },
+  identity: { flexDirection: 'row', alignItems: 'center' },
+  identityText: { flex: 1, marginLeft: 14 },
+  name: { color: '#FFFFFF', fontWeight: '700' },
+  email: { color: 'rgba(255,255,255,0.76)', marginTop: 3 },
+  heroCopy: { color: 'rgba(255,255,255,0.76)', marginTop: 16, lineHeight: 20 },
+  heroButton: {
+    alignSelf: 'flex-start',
+    marginTop: 14,
+    borderColor: 'rgba(255,255,255,0.45)',
+  },
+  section: { marginTop: 16 },
+  sectionCopy: { marginBottom: 10, lineHeight: 20 },
+  divider: { marginHorizontal: 16 },
   profilePictureRow: {
     flexDirection: 'row',
     alignItems: 'center',

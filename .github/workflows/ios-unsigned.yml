@@ -7,7 +7,6 @@ jobs:
   build:
     runs-on: macos-latest
     timeout-minutes: 60
-
     steps:
       - uses: actions/checkout@v4
 
@@ -19,7 +18,14 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
+      - name: Configure the iOS project (Firebase file)
+        run: |
+          sudo gem install xcodeproj --no-document
+          ruby scripts/ios_configure.rb
+
       - name: Install CocoaPods dependencies
+        env:
+          USE_FRAMEWORKS: static
         run: |
           cd ios
           pod install

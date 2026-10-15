@@ -1,38 +1,42 @@
 workflows:
-  ios-simulator:
-    name: AI-MoneySafe iOS Simulator
-
-    max_build_duration: 120
-
+  ios-release:
+    name: iOS release
+    max_build_duration: 60
     instance_type: mac_mini_m2
-
     environment:
-      node: 22.11.0
       xcode: latest
+      node: 22
       cocoapods: default
-
+      vars:
+        ENABLE_PUSH: "1"
+        USE_FRAMEWORKS: "static"
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.yourname.moneysafe
+    integrations:
+      app_store_connect: moneysafe-asc
     scripts:
-      - name: Install npm dependencies
+      - name: Install JavaScript dependencies
+        script: npm ci
+      - name: Configure the iOS project (Firebase file and push entitlement)
         script: |
-          cd "$CM_BUILD_DIR/mobile"
-          npm ci
-
+          gem install xcodeproj --no-document
+          ruby scripts/ios_configure.rb
       - name: Install CocoaPods dependencies
+        script: cd ios && pod install
+      - name: Set up code signing
+        script: xcode-project use-profiles
+      - name: Set the build number
         script: |
-          cd "$CM_BUILD_DIR/mobile/ios"
-          pod install
-
-      - name: Build iOS Simulator app
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" ios/MoneySafeApp/Info.plist
+      - name: Build the .ipa
         script: |
-          xcodebuild \
-            -workspace "$CM_BUILD_DIR/mobile/ios/mobile.xcworkspace" \
-            -scheme mobile \
-            -configuration Debug \
-            -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath "$CM_BUILD_DIR/build/ios" \
-            CODE_SIGNING_ALLOWED=NO \
-            build
-
+          xcode-project build-ipa \
+            --workspace "ios/MoneySafeApp.xcworkspace" \
+            --scheme "MoneySafeApp"
     artifacts:
-      - $CM_BUILD_DIR/build/ios/Build/Products/Debug-iphonesimulator/*.app
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

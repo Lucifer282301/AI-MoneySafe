@@ -5,5 +5,5 @@
         android:width="140dp"
         android:height="140dp"
         android:gravity="center"
-        android:drawable="@drawable/splash_logo" />
+        android:drawable="@drawable/moneysafe_brand_glyph" />
 </layer-list>

@@ -3,9 +3,8 @@ const auth = require("../middleware/auth");
 const ctrl = require("../controllers/budgetController");
 
 router.use(auth);
-
-router.get("/", ctrl.getAll);
+router.get("/", ctrl.overview);
 router.post("/", ctrl.setBudget);
-router.delete("/:id", ctrl.remove);
+router.delete("/", ctrl.remove);
 
 module.exports = router;

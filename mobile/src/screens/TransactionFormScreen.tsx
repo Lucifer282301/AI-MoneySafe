@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   PermissionsAndroid,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -12,7 +13,6 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   Button,
-  Chip,
   HelperText,
   SegmentedButtons,
   Text,
@@ -34,6 +34,7 @@ import {
   updateTransaction,
 } from '../store/slices/transactionsSlice';
 import { CATEGORIES, CATEGORY_META } from '../utils/categories';
+import CategoryIcon from '../components/CategoryIcon';
 import { toDateInput, todayISO } from '../utils/format';
 import type { MainStackParamList } from '../navigation/types';
 import type { Category, ExtractedReceipt, TransactionType } from '../types';
@@ -192,131 +193,214 @@ export default function TransactionFormScreen({ navigation, route }: Props) {
     ]);
   };
 
+  const dark = theme.dark;
+  const surface = dark ? '#1D2A23' : '#FFFEFA';
+  const border = dark ? '#34483B' : '#E6E5DA';
+
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: theme.colors.background }}
+      style={{
+        flex: 1,
+        backgroundColor: dark ? '#111B16' : '#F6F5EF',
+      }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        {receiptUrl && (
-          <Image
-            source={{ uri: receiptUrl }}
-            style={styles.receipt}
-            resizeMode="cover"
-            accessibilityLabel="Receipt image"
-          />
-        )}
-
-        <Text variant="titleMedium" style={styles.label}>
-          Scan a receipt or payment screenshot
+        <Text variant="titleLarge" style={styles.pageTitle}>
+          {editing ? 'Update the details' : 'Make it count'}
         </Text>
-        <View style={styles.row}>
-          <Button
-            mode="outlined"
-            icon="camera"
-            onPress={() => scan('camera')}
-            disabled={scanning}
-            style={styles.flex}
-          >
-            Camera
-          </Button>
-          <Button
-            mode="outlined"
-            icon="image"
-            onPress={() => scan('gallery')}
-            disabled={scanning}
-            style={styles.flex}
-          >
-            Gallery
-          </Button>
-        </View>
-        {scanning && (
-          <HelperText type="info" visible>
-            Reading your receipt with AI…
-          </HelperText>
-        )}
+        <Text
+          variant="bodyMedium"
+          style={[styles.intro, { color: theme.colors.onSurfaceVariant }]}
+        >
+          {editing
+            ? 'A quick edit keeps your money picture up to date.'
+            : 'Add a purchase or income to keep your money picture clear.'}
+        </Text>
 
-        <SegmentedButtons
-          value={type}
-          onValueChange={v => setType(v as TransactionType)}
-          buttons={[
-            { value: 'DEBIT', label: 'Expense', icon: 'arrow-top-right' },
-            { value: 'CREDIT', label: 'Income', icon: 'arrow-bottom-left' },
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: surface, borderColor: border },
           ]}
-          style={{ marginTop: 16 }}
-        />
+        >
+          <Text variant="titleSmall" style={styles.sectionTitle}>
+            Add from a receipt
+          </Text>
+          <Text
+            variant="bodySmall"
+            style={[
+              styles.supportingText,
+              { color: theme.colors.onSurfaceVariant },
+            ]}
+          >
+            We’ll fill in the details for you to review.
+          </Text>
+          {receiptUrl && (
+            <Image
+              source={{ uri: receiptUrl }}
+              style={styles.receipt}
+              resizeMode="cover"
+              accessibilityLabel="Receipt image"
+            />
+          )}
+          <View style={styles.row}>
+            <Button
+              mode="outlined"
+              icon="camera"
+              onPress={() => scan('camera')}
+              disabled={scanning}
+              style={styles.flex}
+              contentStyle={styles.buttonContent}
+              accessibilityLabel="Capture receipt with camera"
+            >
+              Camera
+            </Button>
+            <Button
+              mode="outlined"
+              icon="image"
+              onPress={() => scan('gallery')}
+              disabled={scanning}
+              style={styles.flex}
+              contentStyle={styles.buttonContent}
+              accessibilityLabel="Choose a receipt from gallery"
+            >
+              Gallery
+            </Button>
+          </View>
+          {scanning && (
+            <HelperText type="info" visible>
+              Reading your receipt with AI…
+            </HelperText>
+          )}
+        </View>
 
-        <TextInput
-          label="Merchant"
-          mode="outlined"
-          value={merchant}
-          onChangeText={setMerchant}
-          style={styles.input}
-        />
-        <TextInput
-          label="Amount"
-          mode="outlined"
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="decimal-pad"
-          style={styles.input}
-        />
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: surface, borderColor: border },
+          ]}
+        >
+          <Text variant="titleSmall" style={styles.sectionTitle}>
+            Transaction details
+          </Text>
+          <SegmentedButtons
+            value={type}
+            onValueChange={v => setType(v as TransactionType)}
+            buttons={[
+              { value: 'DEBIT', label: 'Expense', icon: 'arrow-top-right' },
+              { value: 'CREDIT', label: 'Income', icon: 'arrow-bottom-left' },
+            ]}
+            style={styles.segment}
+          />
+          <TextInput
+            label="Merchant or source"
+            mode="outlined"
+            value={merchant}
+            onChangeText={setMerchant}
+            style={styles.input}
+          />
+          <TextInput
+            label="Amount"
+            mode="outlined"
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
+            style={styles.input}
+          />
+        </View>
 
-        <Text variant="titleSmall" style={styles.label}>
-          Category
-        </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {CATEGORIES.map(c => {
-            const selected = category === c;
-            return (
-              <Chip
-                key={c}
-                icon={CATEGORY_META[c].icon}
-                selected={selected}
-                onPress={() => setCategory(c)}
-                mode={selected ? 'flat' : 'outlined'}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: selected
-                      ? theme.colors.primaryContainer
-                      : theme.colors.surface,
-                    borderColor: selected
-                      ? theme.colors.primary
-                      : theme.colors.outline,
-                    borderWidth: selected ? 1 : 1,
-                  },
-                ]}
-                textStyle={{
-                  color: selected
-                    ? theme.colors.onPrimaryContainer
-                    : theme.colors.onSurface,
-                  fontWeight: selected ? '700' : '500',
-                }}
-              >
-                {CATEGORY_META[c].label}
-              </Chip>
-            );
-          })}
-        </ScrollView>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: surface, borderColor: border },
+          ]}
+        >
+          <Text variant="titleSmall" style={styles.sectionTitle}>
+            Choose a category
+          </Text>
+          <Text
+            variant="bodySmall"
+            style={[
+              styles.supportingText,
+              { color: theme.colors.onSurfaceVariant },
+            ]}
+          >
+            This helps you understand where your money goes.
+          </Text>
+          <View style={styles.categoryGrid}>
+            {CATEGORIES.map(c => {
+              const selected = category === c;
+              return (
+                <Pressable
+                  key={c}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={CATEGORY_META[c].label}
+                  onPress={() => setCategory(c)}
+                  style={[
+                    styles.categoryCard,
+                    {
+                      backgroundColor: selected
+                        ? dark
+                          ? '#2C4938'
+                          : '#E7EFE5'
+                        : surface,
+                      borderColor: selected
+                        ? dark
+                          ? '#71977A'
+                          : '#93B398'
+                        : border,
+                    },
+                  ]}
+                >
+                  <CategoryIcon category={c} size={34} />
+                  <Text
+                    variant="labelSmall"
+                    numberOfLines={1}
+                    style={[
+                      styles.categoryLabel,
+                      selected && [
+                        styles.selectedCategoryLabel,
+                        { color: dark ? '#D7EBDD' : '#315F49' },
+                      ],
+                    ]}
+                  >
+                    {CATEGORY_META[c].label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
 
-        <TextInput
-          label="Date (YYYY-MM-DD)"
-          mode="outlined"
-          value={date}
-          onChangeText={setDate}
-          style={styles.input}
-        />
-        <TextInput
-          label="Note (optional)"
-          mode="outlined"
-          value={note}
-          onChangeText={setNote}
-          style={styles.input}
-        />
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: surface, borderColor: border },
+          ]}
+        >
+          <Text variant="titleSmall" style={styles.sectionTitle}>
+            A few more details
+          </Text>
+          <TextInput
+            label="Date (YYYY-MM-DD)"
+            mode="outlined"
+            value={date}
+            onChangeText={setDate}
+            style={styles.input}
+          />
+          <TextInput
+            label="Note (optional)"
+            mode="outlined"
+            value={note}
+            onChangeText={setNote}
+            style={styles.input}
+          />
+        </View>
 
         <HelperText type="error" visible={!!error}>
           {error}
@@ -327,7 +411,13 @@ export default function TransactionFormScreen({ navigation, route }: Props) {
           onPress={save}
           loading={saving}
           disabled={saving || scanning}
-          contentStyle={{ paddingVertical: 6 }}
+          contentStyle={styles.saveContent}
+          style={styles.saveButton}
+          buttonColor={dark ? '#456B56' : '#315F49'}
+          textColor="#FFFFFF"
+          accessibilityLabel={
+            editing ? 'Save transaction changes' : 'Save transaction'
+          }
         >
           {editing ? 'Save changes' : 'Save transaction'}
         </Button>
@@ -338,7 +428,7 @@ export default function TransactionFormScreen({ navigation, route }: Props) {
             textColor={theme.colors.error}
             icon="delete-outline"
             onPress={remove}
-            style={{ marginTop: 12 }}
+            style={styles.deleteButton}
           >
             Delete transaction
           </Button>
@@ -349,11 +439,42 @@ export default function TransactionFormScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, paddingBottom: 40 },
+  content: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 40 },
+  pageTitle: { fontWeight: '800' },
+  intro: { marginTop: 4, marginBottom: 18 },
+  card: {
+    borderWidth: 1,
+    borderRadius: 22,
+    padding: 16,
+    marginBottom: 14,
+  },
+  sectionTitle: { fontWeight: '700' },
+  supportingText: { marginTop: 3, marginBottom: 10 },
   receipt: { height: 180, borderRadius: 16, marginBottom: 12 },
-  row: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  row: { flexDirection: 'row', gap: 10, marginTop: 4 },
   flex: { flex: 1 },
-  label: { marginTop: 8, fontWeight: '600' },
+  buttonContent: { minHeight: 46 },
+  segment: { marginTop: 14 },
   input: { marginTop: 12 },
-  chip: { marginRight: 8, marginTop: 8 },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  categoryCard: {
+    width: '31.5%',
+    minHeight: 82,
+    borderWidth: 1,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    paddingVertical: 9,
+  },
+  categoryLabel: { marginTop: 5, fontWeight: '500' },
+  selectedCategoryLabel: { color: '#315F49', fontWeight: '700' },
+  saveContent: { minHeight: 52 },
+  saveButton: { borderRadius: 16 },
+  deleteButton: { marginTop: 8 },
 });

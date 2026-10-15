@@ -15,7 +15,7 @@ if (!fs.existsSync(packageJsonPath)) {
 }
 
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-const exports = packageJson.exports || {};
+const packageExports = packageJson.exports || {};
 const requiredExports = {
   './src/private/featureflags/ReactNativeFeatureFlags':
     './src/private/featureflags/ReactNativeFeatureFlags.js',
@@ -24,8 +24,8 @@ const requiredExports = {
 
 let changed = false;
 for (const [key, value] of Object.entries(requiredExports)) {
-  if (!exports[key]) {
-    exports[key] = value;
+  if (!packageExports[key]) {
+    packageExports[key] = value;
     changed = true;
   }
 }
@@ -37,6 +37,6 @@ if (!changed) {
   process.exit(0);
 }
 
-packageJson.exports = exports;
+packageJson.exports = packageExports;
 fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
 console.log('Patched React Native package exports for legacy deep imports.');

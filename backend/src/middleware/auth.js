@@ -1,9 +1,8 @@
 const jwt = require("jsonwebtoken");
 const env = require("../config/env");
 
-function authMiddleware(req, res, next) {
+function auth(req, res, next) {
   const header = req.headers.authorization || "";
-
   if (!header.startsWith("Bearer ")) {
     return res.status(401).json({ error: "No token provided" });
   }
@@ -22,4 +21,4 @@ function authMiddleware(req, res, next) {
   }
 }
 
-module.exports = authMiddleware;
+module.exports = auth;

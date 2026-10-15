@@ -28,6 +28,40 @@ function parseMonthYear(query = {}) {
   return { year, month };
 }
 
+const pad = (n) => String(n).padStart(2, "0");
+
+// "2026-10" for a date
+const periodOf = (date) =>
+  `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}`;
+
+const currentPeriod = () => periodOf(new Date());
+
+// Validates "YYYY-MM"; defaults to the current month when empty
+function parsePeriod(value) {
+  if (value === undefined || value === null || value === "")
+    return currentPeriod();
+  const p = String(value);
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(p) || Number(p.slice(0, 4)) < 2000) {
+    throw new HttpError(400, "period must look like 2026-10");
+  }
+  return p;
+}
+
+// { year, month, gte, lt } for a period string
+function periodRange(period) {
+  const year = Number(period.slice(0, 4));
+  const month = Number(period.slice(5, 7));
+  return { year, month, ...monthRange(year, month) };
+}
+
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-module.exports = { monthRange, parseMonthYear, round2 };
+module.exports = {
+  monthRange,
+  parseMonthYear,
+  periodOf,
+  currentPeriod,
+  parsePeriod,
+  periodRange,
+  round2,
+};

@@ -9,28 +9,26 @@ interface ChatState {
   error: string | null;
 }
 
-const GREETING: ChatMessage = {
-  role: 'assistant',
-  content: 'Hi! Ask me anything about your spending this month.',
-};
-
 const initialState: ChatState = {
-  messages: [GREETING],
+  messages: [],
   sending: false,
   error: null,
 };
 
 export const sendChat = createAsyncThunk<
-  string,
+  { reply: string; card: ChatMessage['card'] },
   void,
   { state: { chat: ChatState }; rejectValue: string }
 >('chat/send', async (_, { getState, rejectWithValue }) => {
   try {
     const { messages } = getState().chat;
-    const { data } = await api.post<{ reply: string }>('/ai/chat', {
+    const { data } = await api.post<{
+      reply: string;
+      card: ChatMessage['card'];
+    }>('/ai/chat', {
       messages,
     });
-    return data.reply;
+    return data;
   } catch (e) {
     return rejectWithValue(getErrorMessage(e));
   }
@@ -41,7 +39,11 @@ const chatSlice = createSlice({
   initialState,
   reducers: {
     userMessageAdded(state, action: PayloadAction<string>) {
-      state.messages.push({ role: 'user', content: action.payload });
+      state.messages.push({
+        role: 'user',
+        content: action.payload,
+        createdAt: new Date().toISOString(),
+      });
       state.error = null;
     },
   },
@@ -52,7 +54,12 @@ const chatSlice = createSlice({
       })
       .addCase(sendChat.fulfilled, (state, action) => {
         state.sending = false;
-        state.messages.push({ role: 'assistant', content: action.payload });
+        state.messages.push({
+          role: 'assistant',
+          content: action.payload.reply,
+          card: action.payload.card,
+          createdAt: new Date().toISOString(),
+        });
       })
       .addCase(sendChat.rejected, (state, action) => {
         state.sending = false;

@@ -7,10 +7,10 @@ export type AuthStackParamList = {
 
 export type TabParamList = {
   Home: undefined;
-  Transactions: undefined;
-  Budgets: undefined;
-  Chat: undefined;
-  Profile: undefined;
+  Assistant: undefined;
+  Activity: undefined;
+  Goals: undefined;
+  Safety: undefined;
 };
 
 export type MainStackParamList = {
@@ -18,5 +18,8 @@ export type MainStackParamList = {
   Tabs: { screen?: keyof TabParamList } | undefined;
   // Pass a transaction to edit it; omit to create a new one
   TransactionForm: { tx?: Transaction } | undefined;
+  Budgets: undefined;
+  Accounts: undefined;
+  Profile: undefined;
   EditProfile: undefined;
 };

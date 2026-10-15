@@ -64,6 +64,16 @@ export interface Summary {
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  createdAt?: string;
+  card?: {
+    type: 'save_suggestion';
+    goalId: string;
+    goalName: string;
+    amount: number;
+    safeToSpend: number;
+    stillHave: number;
+    fundedAfterPct: number;
+  } | null;
 }
 
 export interface ExtractedReceipt {

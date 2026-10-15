@@ -8,12 +8,13 @@ router.post("/login", authLimiter, ctrl.login);
 router.post("/refresh", authLimiter, ctrl.refresh);
 router.post("/logout", ctrl.logout);
 
-router.post("/push-token", auth, ctrl.savePushToken);
-
 router.get("/me", auth, ctrl.me);
-router.patch("/me", auth, ctrl.updateProfile);
+router.patch("/me", auth, authLimiter, ctrl.updateProfile);
+router.delete("/me", auth, ctrl.deleteAccount);
 router.post("/change-password", auth, authLimiter, ctrl.changePassword);
 router.patch("/currency", auth, ctrl.updateCurrency);
-router.delete("/me", auth, ctrl.deleteAccount);
+router.patch("/settings", auth, ctrl.updateSettings);
+router.post("/avatar", auth, ctrl.setAvatar);
+router.delete("/avatar", auth, ctrl.removeAvatar);
 
 module.exports = router;

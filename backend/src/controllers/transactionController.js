@@ -2,6 +2,8 @@ const prisma = require("../lib/prisma");
 const HttpError = require("../lib/httpError");
 const asyncHandler = require("../middleware/asyncHandler");
 const { monthRange, parseMonthYear, round2 } = require("../lib/dates");
+const { COUNTED } = require("../lib/finance");
+const { checkBudgetAfterExpense } = require("../lib/budgetAlerts");
 const {
   parseCategory,
   parseType,
@@ -10,7 +12,25 @@ const {
   cleanText,
   parseReceiptUrl,
 } = require("../lib/validate");
-const { checkBudgetAfterExpense } = require("../lib/budgetAlerts");
+
+// How a transaction changes its account balance. Paused or disputed payments change nothing.
+function balanceEffect(tx) {
+  if (!tx.accountId || !["NONE", "CONFIRMED"].includes(tx.reviewStatus))
+    return null;
+  return {
+    accountId: tx.accountId,
+    delta: tx.type === "CREDIT" ? tx.amount : -tx.amount,
+  };
+}
+
+async function assertAccountOwned(userId, accountId) {
+  if (!accountId) return null;
+  const account = await prisma.account.findFirst({
+    where: { id: accountId, userId },
+  });
+  if (!account) throw new HttpError(400, "Account not found");
+  return account.id;
+}
 
 // Turns a request body into safe database fields (throws 400 if anything is invalid)
 function parsePayload(body = {}) {
@@ -24,19 +44,26 @@ function parsePayload(body = {}) {
     type: body.type ? parseType(body.type) : "DEBIT",
     note: cleanText(body.note, 200) || null,
     date: parseDate(body.date),
+    paymentMethod: cleanText(body.paymentMethod, 60) || null,
+    location: cleanText(body.location, 60) || null,
+    accountId:
+      typeof body.accountId === "string" && body.accountId
+        ? body.accountId
+        : null,
     // undefined means "leave unchanged" on update
     receiptUrl:
       "receiptUrl" in body ? parseReceiptUrl(body.receiptUrl) : undefined,
   };
 }
 
-// GET /api/transactions?search=&category=&month=&year=&page=1&limit=30
+// GET /api/transactions?search=&category=&accountId=&month=&year=&page=1&limit=30
 exports.getAll = asyncHandler(async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 1), 100);
   const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
 
   const where = { userId: req.userId };
   if (req.query.category) where.category = parseCategory(req.query.category);
+  if (req.query.accountId) where.accountId = String(req.query.accountId);
   if (req.query.search) {
     where.merchant = {
       contains: String(req.query.search).slice(0, 80),
@@ -61,15 +88,29 @@ exports.getAll = asyncHandler(async (req, res) => {
 // POST /api/transactions
 exports.create = asyncHandler(async (req, res) => {
   const data = parsePayload(req.body);
-  const tx = await prisma.transaction.create({
-    data: { ...data, receiptUrl: data.receiptUrl ?? null, userId: req.userId },
+  data.accountId = await assertAccountOwned(req.userId, data.accountId);
+
+  const tx = await prisma.$transaction(async (db) => {
+    const created = await db.transaction.create({
+      data: {
+        ...data,
+        receiptUrl: data.receiptUrl ?? null,
+        userId: req.userId,
+      },
+    });
+    const effect = balanceEffect(created);
+    if (effect) {
+      await db.account.update({
+        where: { id: effect.accountId },
+        data: { balance: { increment: effect.delta } },
+      });
+    }
+    return created;
   });
 
-  // Fire and forget: never make the user wait for push delivery
   checkBudgetAfterExpense(tx).catch((err) =>
     console.error("Budget alert failed:", err.message),
   );
-
   res.status(201).json(tx);
 });
 
@@ -80,13 +121,33 @@ exports.update = asyncHandler(async (req, res) => {
   });
   if (!existing) throw new HttpError(404, "Transaction not found");
 
-  const tx = await prisma.transaction.update({
-    where: { id: existing.id },
-    data: parsePayload(req.body),
+  const data = parsePayload(req.body);
+  data.accountId = await assertAccountOwned(req.userId, data.accountId);
+
+  const tx = await prisma.$transaction(async (db) => {
+    const updated = await db.transaction.update({
+      where: { id: existing.id },
+      data,
+    });
+
+    // Undo the old balance effect, then apply the new one
+    const before = balanceEffect(existing);
+    if (before) {
+      await db.account.update({
+        where: { id: before.accountId },
+        data: { balance: { increment: -before.delta } },
+      });
+    }
+    const after = balanceEffect(updated);
+    if (after) {
+      await db.account.update({
+        where: { id: after.accountId },
+        data: { balance: { increment: after.delta } },
+      });
+    }
+    return updated;
   });
 
-  // Compare spending before and after the edit.
-  // Never make the user wait for push delivery.
   checkBudgetAfterExpense(tx, existing).catch((err) =>
     console.error("Budget alert failed:", err.message),
   );
@@ -95,11 +156,63 @@ exports.update = asyncHandler(async (req, res) => {
 
 // DELETE /api/transactions/:id
 exports.remove = asyncHandler(async (req, res) => {
-  const { count } = await prisma.transaction.deleteMany({
+  const existing = await prisma.transaction.findFirst({
     where: { id: req.params.id, userId: req.userId },
   });
-  if (count === 0) throw new HttpError(404, "Transaction not found");
+  if (!existing) throw new HttpError(404, "Transaction not found");
+
+  await prisma.$transaction(async (db) => {
+    await db.transaction.delete({ where: { id: existing.id } });
+    const effect = balanceEffect(existing);
+    if (effect) {
+      await db.account.update({
+        where: { id: effect.accountId },
+        data: { balance: { increment: -effect.delta } },
+      });
+    }
+  });
+
   res.json({ success: true });
+});
+
+// POST /api/transactions/:id/review  { decision: "RECOGNIZED" | "NOT_ME" }
+exports.review = asyncHandler(async (req, res) => {
+  const decision = String((req.body || {}).decision || "");
+  if (!["RECOGNIZED", "NOT_ME"].includes(decision)) {
+    throw new HttpError(400, "decision must be RECOGNIZED or NOT_ME");
+  }
+
+  const existing = await prisma.transaction.findFirst({
+    where: { id: req.params.id, userId: req.userId },
+  });
+  if (!existing) throw new HttpError(404, "Transaction not found");
+  if (existing.reviewStatus !== "PENDING")
+    throw new HttpError(409, "This payment was already reviewed");
+
+  const tx = await prisma.$transaction(async (db) => {
+    const updated = await db.transaction.update({
+      where: { id: existing.id },
+      data: {
+        reviewStatus: decision === "RECOGNIZED" ? "CONFIRMED" : "DISPUTED",
+      },
+    });
+    // A recognized payment now counts: apply it to the account balance
+    const effect = balanceEffect(updated);
+    if (effect) {
+      await db.account.update({
+        where: { id: effect.accountId },
+        data: { balance: { increment: effect.delta } },
+      });
+    }
+    return updated;
+  });
+
+  if (decision === "RECOGNIZED") {
+    checkBudgetAfterExpense(tx).catch((err) =>
+      console.error("Budget alert failed:", err.message),
+    );
+  }
+  res.json(tx);
 });
 
 // GET /api/transactions/summary?month=&year=   (defaults to the current month)
@@ -107,16 +220,19 @@ exports.summary = asyncHandler(async (req, res) => {
   const { year, month } = parseMonthYear(req.query);
   const date = monthRange(year, month);
 
-  const [debits, credits] = await Promise.all([
+  const [debits, credits, paused] = await Promise.all([
     prisma.transaction.groupBy({
       by: ["category"],
-      where: { userId: req.userId, type: "DEBIT", date },
+      where: { userId: req.userId, type: "DEBIT", date, ...COUNTED },
       _sum: { amount: true },
       _count: { _all: true },
     }),
     prisma.transaction.aggregate({
-      where: { userId: req.userId, type: "CREDIT", date },
+      where: { userId: req.userId, type: "CREDIT", date, ...COUNTED },
       _sum: { amount: true },
+    }),
+    prisma.transaction.count({
+      where: { userId: req.userId, reviewStatus: "PENDING" },
     }),
   ]);
 
@@ -135,50 +251,13 @@ exports.summary = asyncHandler(async (req, res) => {
     income: round2(credits._sum.amount || 0),
     count,
     byCategory,
+    pausedCount: paused,
     month,
     year,
   });
 });
 
-// GET /api/transactions/trend?months=6
-// Income and spending per month for the last N months (oldest first), used by the app's bar chart
-exports.trend = asyncHandler(async (req, res) => {
-  const count = Math.min(Math.max(parseInt(req.query.months, 10) || 6, 1), 12);
-  const now = new Date();
-
-  const months = Array.from({ length: count }, (_, i) => {
-    const d = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (count - 1 - i), 1),
-    );
-    return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 };
-  });
-
-  const points = await Promise.all(
-    months.map(async ({ year, month }) => {
-      const date = monthRange(year, month);
-      const [debit, credit] = await Promise.all([
-        prisma.transaction.aggregate({
-          where: { userId: req.userId, type: "DEBIT", date },
-          _sum: { amount: true },
-        }),
-        prisma.transaction.aggregate({
-          where: { userId: req.userId, type: "CREDIT", date },
-          _sum: { amount: true },
-        }),
-      ]);
-      return {
-        year,
-        month,
-        expense: round2(debit._sum.amount || 0),
-        income: round2(credit._sum.amount || 0),
-      };
-    }),
-  );
-
-  res.json(points);
-});
-
-// Escape a value for CSV and neutralize spreadsheet formulas
+// Escape a value for CSV and neutralise spreadsheet formulas
 function csvCell(value) {
   let s = value == null ? "" : String(value);
   if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;

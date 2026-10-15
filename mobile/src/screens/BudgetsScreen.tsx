@@ -12,8 +12,6 @@ import {
 } from 'react-native-paper';
 
 import Screen from '../components/Screen';
-import HeroCard from '../components/HeroCard';
-import SectionCard from '../components/SectionCard';
 import CategoryBar from '../components/CategoryBar';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
@@ -41,35 +39,36 @@ export default function BudgetsScreen() {
   useFocusEffect(
     useCallback(() => {
       dispatch(fetchBudgets());
-      dispatch(fetchSummary()); // current month
+      dispatch(fetchSummary());
     }, [dispatch]),
   );
 
-  const totalLimit = budgets.reduce((s, b) => s + b.limit, 0);
+  const totalLimit = budgets.reduce((sum, budget) => sum + budget.limit, 0);
   const totalUsed = budgets.reduce(
-    (s, b) => s + (summary?.byCategory[b.category] ?? 0),
+    (sum, budget) => sum + (summary?.byCategory[budget.category] ?? 0),
     0,
   );
   const ratio = totalLimit > 0 ? totalUsed / totalLimit : 0;
   const fillColor =
-    ratio >= 1 ? colors.danger : ratio >= 0.8 ? colors.warning : colors.accent;
-
+    ratio >= 1 ? colors.danger : ratio >= 0.8 ? colors.warning : '#A8C5AA';
   const existing = editing
-    ? budgets.find(b => b.category === editing)
+    ? budgets.find(budget => budget.category === editing)
     : undefined;
+  const dark = theme.dark;
 
-  const open = (c: Category) => {
-    setEditing(c);
-    setValue(String(budgets.find(b => b.category === c)?.limit ?? ''));
+  const open = (category: Category) => {
+    setEditing(category);
+    setValue(
+      String(budgets.find(budget => budget.category === category)?.limit ?? ''),
+    );
   };
 
   const save = async () => {
-    const n = parseFloat(value);
-    if (!editing || !(n > 0)) return;
-    await dispatch(saveBudget({ category: editing, limit: n }));
+    const limit = parseFloat(value);
+    if (!editing || !(limit > 0)) return;
+    await dispatch(saveBudget({ category: editing, limit }));
     setEditing(null);
 
-    // Ask once, right when alerts become useful
     if (await shouldAskForPush()) {
       Alert.alert(
         'Get budget alerts?',
@@ -94,27 +93,44 @@ export default function BudgetsScreen() {
   };
 
   const remove = async () => {
-    if (existing) await dispatch(deleteBudget(existing.id));
+    if (existing) {
+      const now = new Date();
+      const period = `${now.getFullYear()}-${String(
+        now.getMonth() + 1,
+      ).padStart(2, '0')}`;
+      await dispatch(deleteBudget({ category: existing.category, period }));
+    }
     setEditing(null);
   };
 
   return (
-    <Screen title="Budgets">
+    <Screen
+      title="Budgets"
+      style={{ backgroundColor: dark ? '#111B16' : '#F6F5EF' }}
+    >
       <ScrollView contentContainerStyle={styles.content}>
-        <HeroCard>
-          <Text variant="labelLarge" style={{ color: colors.heroMuted }}>
-            Used this month
+        <View
+          style={[
+            styles.hero,
+            { backgroundColor: dark ? '#20392D' : '#214A38' },
+          ]}
+        >
+          <View style={styles.heroOrnament} />
+          <Text variant="labelLarge" style={styles.heroLabel}>
+            MONTHLY OVERVIEW
           </Text>
-          <Text
-            variant="headlineMedium"
-            style={{ color: colors.onHero, fontWeight: '800', marginTop: 2 }}
-          >
+          <Text variant="bodyMedium" style={styles.heroSubhead}>
+            Spent across your budgeted categories
+          </Text>
+          <Text variant="headlineMedium" style={styles.total}>
             {money(totalUsed)}
-            <Text variant="bodyMedium" style={{ color: colors.heroMuted }}>
-              {totalLimit > 0 ? `  of ${money(totalLimit)}` : ''}
-            </Text>
+            {totalLimit > 0 && (
+              <Text variant="titleSmall" style={styles.totalLimit}>
+                {'  '}of {money(totalLimit)}
+              </Text>
+            )}
           </Text>
-          <View style={[styles.track, { backgroundColor: colors.heroTrack }]}>
+          <View style={styles.track}>
             <View
               style={[
                 styles.fill,
@@ -125,40 +141,59 @@ export default function BudgetsScreen() {
               ]}
             />
           </View>
-          {totalLimit === 0 && (
-            <Text
-              variant="bodySmall"
-              style={{ color: colors.heroMuted, marginTop: 8 }}
-            >
-              Set a limit below to start tracking.
+          <View style={styles.heroFoot}>
+            <Text variant="bodySmall" style={styles.heroFootText}>
+              {totalLimit === 0
+                ? 'Set your first limit below to start tracking.'
+                : `${Math.round(ratio * 100)}% of your total limit used`}
             </Text>
-          )}
-        </HeroCard>
+            {ratio >= 0.8 && totalLimit > 0 && (
+              <Text variant="labelSmall" style={styles.alertTag}>
+                {ratio >= 1 ? 'Over budget' : 'Almost there'}
+              </Text>
+            )}
+          </View>
+        </View>
 
-        <Text
-          variant="bodySmall"
-          style={[styles.hint, { color: theme.colors.onSurfaceVariant }]}
-        >
-          Tap a category to set its monthly limit.
-        </Text>
+        <View style={styles.sectionHeading}>
+          <Text variant="titleMedium" style={styles.sectionTitle}>
+            Category limits
+          </Text>
+          <Text
+            variant="bodySmall"
+            style={{ color: theme.colors.onSurfaceVariant }}
+          >
+            Monthly · tap a card to edit
+          </Text>
+        </View>
 
-        <SectionCard>
-          {CATEGORIES.map(c => (
+        <View style={styles.grid}>
+          {CATEGORIES.map(category => (
             <Pressable
-              key={c}
+              key={category}
               accessibilityRole="button"
-              accessibilityLabel={`Set ${CATEGORY_META[c].label} budget`}
-              onPress={() => open(c)}
-              style={styles.item}
+              accessibilityLabel={`Set ${CATEGORY_META[category].label} budget`}
+              accessibilityHint="Opens the monthly budget limit editor"
+              onPress={() => open(category)}
+              style={({ pressed }) => [
+                styles.categoryCard,
+                {
+                  backgroundColor: dark ? '#1D2A23' : '#FFFEFA',
+                  borderColor: dark ? '#33463A' : '#E6E5DA',
+                },
+                pressed && styles.pressed,
+              ]}
             >
               <CategoryBar
-                category={c}
-                spent={summary?.byCategory[c] ?? 0}
-                limit={budgets.find(b => b.category === c)?.limit}
+                category={category}
+                spent={summary?.byCategory[category] ?? 0}
+                limit={
+                  budgets.find(budget => budget.category === category)?.limit
+                }
               />
             </Pressable>
           ))}
-        </SectionCard>
+        </View>
       </ScrollView>
 
       <Portal>
@@ -167,6 +202,15 @@ export default function BudgetsScreen() {
             {editing ? `${CATEGORY_META[editing].label} budget` : ''}
           </Dialog.Title>
           <Dialog.Content>
+            <Text
+              variant="bodyMedium"
+              style={[
+                styles.dialogHint,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
+              Choose a monthly limit to keep this category on track.
+            </Text>
             <TextInput
               label="Monthly limit"
               mode="outlined"
@@ -177,7 +221,15 @@ export default function BudgetsScreen() {
             />
           </Dialog.Content>
           <Dialog.Actions>
-            {existing && <Button onPress={remove}>Remove</Button>}
+            {existing && (
+              <Button
+                onPress={remove}
+                textColor={theme.colors.error}
+                accessibilityLabel="Remove this budget"
+              >
+                Remove
+              </Button>
+            )}
             <Button onPress={() => setEditing(null)}>Cancel</Button>
             <Button onPress={save}>Save</Button>
           </Dialog.Actions>
@@ -188,9 +240,63 @@ export default function BudgetsScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, paddingBottom: 40 },
-  hint: { marginTop: 14, marginBottom: 10 },
-  item: { paddingVertical: 10 },
-  track: { height: 6, borderRadius: 3, marginTop: 14 },
-  fill: { height: '100%', borderRadius: 3 },
+  content: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 40 },
+  hero: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 26,
+    padding: 20,
+  },
+  heroOrnament: {
+    position: 'absolute',
+    right: -40,
+    top: -50,
+    width: 155,
+    height: 155,
+    borderRadius: 78,
+    backgroundColor: '#A8C5AA',
+    opacity: 0.11,
+  },
+  heroLabel: {
+    color: '#D4E3D6',
+    letterSpacing: 1.2,
+    fontWeight: '700',
+  },
+  heroSubhead: { color: '#D4E3D6', marginTop: 3 },
+  total: { color: '#FFFFFF', fontWeight: '800', marginTop: 12 },
+  totalLimit: { color: '#D4E3D6', fontWeight: '500' },
+  track: {
+    height: 8,
+    borderRadius: 5,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginTop: 16,
+  },
+  fill: { height: '100%', borderRadius: 5 },
+  heroFoot: {
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  heroFootText: { color: '#D4E3D6', flex: 1 },
+  alertTag: {
+    overflow: 'hidden',
+    color: '#FFF4DB',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  sectionHeading: { marginTop: 24, marginBottom: 12 },
+  sectionTitle: { fontWeight: '700' },
+  grid: { gap: 10 },
+  categoryCard: {
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  pressed: { opacity: 0.78 },
+  dialogHint: { marginBottom: 12 },
 });

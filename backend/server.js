@@ -9,20 +9,10 @@ const server = app.listen(env.port, "0.0.0.0", () => {
 
 // Remove expired refresh tokens once a day
 const cleanup = setInterval(
-  async () => {
-    try {
-      const result = await prisma.refreshToken.deleteMany({
-        where: {
-          expiresAt: {
-            lt: new Date(),
-          },
-        },
-      });
-
-      console.log(`🧹 Expired refresh tokens removed: ${result.count}`);
-    } catch (error) {
-      console.error("❌ Token cleanup failed:", error);
-    }
+  () => {
+    prisma.refreshToken
+      .deleteMany({ where: { expiresAt: { lt: new Date() } } })
+      .catch((err) => console.error("Token cleanup failed:", err));
   },
   24 * 60 * 60 * 1000,
 );
@@ -30,33 +20,38 @@ const cleanup = setInterval(
 cleanup.unref();
 
 // Graceful shutdown so in-flight requests finish and DB connections close
-async function shutdown(signal) {
-  console.log(`\n${signal} received, shutting down...`);
-
-  server.close(async () => {
+let shuttingDown = false;
+function shutdown(signal, exitCode = 0) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received, shutting down`);
+  clearInterval(cleanup);
+  const timeout = setTimeout(() => {
+    console.error("Graceful shutdown timed out");
+    process.exit(1);
+  }, 10000);
+  server.close(async (err) => {
+    if (err) console.error("HTTP server shutdown failed:", err);
     try {
       await prisma.$disconnect();
-      console.log("✅ Database connection closed");
-      process.exit(0);
-    } catch (error) {
-      console.error("❌ Error during shutdown:", error);
-      process.exit(1);
+    } catch (disconnectError) {
+      console.error("Database shutdown failed:", disconnectError);
+      exitCode = 1;
+    } finally {
+      clearTimeout(timeout);
+      process.exitCode = exitCode;
     }
   });
-
-  setTimeout(() => {
-    console.error("⚠️ Forced shutdown");
-    process.exit(1);
-  }, 10000).unref();
 }
-
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-process.on("unhandledRejection", (error) => {
-  console.error("❌ Unhandled rejection:", error);
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled rejection:", err);
+  shutdown("unhandledRejection", 1);
 });
 
-process.on("uncaughtException", (error) => {
-  console.error("❌ Uncaught exception:", error);
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+  shutdown("uncaughtException", 1);
 });

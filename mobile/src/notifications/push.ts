@@ -10,6 +10,7 @@ import {
 
 import { api } from '../api/client';
 import { navigationRef } from '../navigation/navigationRef';
+import type { TabParamList } from '../navigation/types';
 
 const TOKEN_KEY = 'moneysafe_push_token';
 const ENABLED_KEY = 'moneysafe_push_enabled';
@@ -103,13 +104,17 @@ export async function shouldAskForPush(): Promise<boolean> {
 export function openFromNotification(message: RemoteMessage | null): void {
   if (!message) return;
   const screenValue = message.data?.screen;
-  const target =
-    typeof screenValue === 'string' && screenValue === 'Budgets' ? 'Budgets' : 'Home';
 
   let attempts = 0;
   const tryNavigate = () => {
     if (navigationRef.isReady()) {
-      navigationRef.navigate('Tabs', { screen: target });
+      if (screenValue === 'Budgets') {
+        navigationRef.navigate('Budgets');
+      } else {
+        const target: keyof TabParamList =
+          screenValue === 'Safety' ? 'Safety' : 'Home';
+        navigationRef.navigate('Tabs', { screen: target });
+      }
     } else if (attempts++ < 10) {
       setTimeout(tryNavigate, 250); // the app may still be starting
     }

@@ -9,6 +9,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Icon, useTheme } from 'react-native-paper';
 
 import { useAppSelector } from '../store/hooks';
+import BrandGlyph from '../components/BrandGlyph';
 import type {
   AuthStackParamList,
   MainStackParamList,
@@ -23,6 +24,9 @@ import TransactionFormScreen from '../screens/TransactionFormScreen';
 import BudgetsScreen from '../screens/BudgetsScreen';
 import ChatScreen from '../screens/ChatScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import AccountsScreen from '../screens/AccountsScreen';
+import GoalsScreen from '../screens/GoalsScreen';
+import SafetyScreen from '../screens/SafetyScreen';
 import { navigationRef } from './navigationRef';
 import EditProfileScreen from '../screens/EditProfileScreen';
 
@@ -33,10 +37,43 @@ const Tab = createBottomTabNavigator<TabParamList>();
 // [selected icon, unselected icon]
 const TAB_ICONS: Record<keyof TabParamList, [string, string]> = {
   Home: ['home', 'home-outline'],
-  Transactions: ['clipboard-list', 'clipboard-list-outline'],
-  Budgets: ['wallet', 'wallet-outline'],
-  Chat: ['chat-processing', 'chat-processing-outline'],
-  Profile: ['account-circle', 'account-circle-outline'],
+  Assistant: ['creation', 'creation-outline'],
+  Activity: ['chart-box', 'chart-box-outline'],
+  Goals: ['bullseye-arrow', 'bullseye'],
+  Safety: ['shield-check', 'shield-check-outline'],
+};
+
+function tabIcon(name: keyof TabParamList) {
+  return ({
+    focused,
+    color,
+    size,
+  }: {
+    focused: boolean;
+    color: string;
+    size: number;
+  }) =>
+    React.createElement(Icon, {
+      source: TAB_ICONS[name][focused ? 0 : 1],
+      color,
+      size: focused ? size + 2 : size,
+    });
+}
+
+const TAB_ICON_RENDERERS: Record<
+  keyof TabParamList,
+  (props: { focused: boolean; color: string; size: number }) => React.ReactNode
+> = {
+  Home: tabIcon('Home'),
+  Assistant: ({ focused, color, size }) =>
+    React.createElement(BrandGlyph, {
+      size: focused ? size + 2 : size,
+      color,
+      strokeWidth: 7,
+    }),
+  Activity: tabIcon('Activity'),
+  Goals: tabIcon('Goals'),
+  Safety: tabIcon('Safety'),
 };
 
 function Tabs() {
@@ -45,32 +82,26 @@ function Tabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: theme.colors.onSurface,
+        tabBarActiveTintColor: theme.colors.secondary,
         tabBarInactiveTintColor: theme.colors.onSurfaceVariant,
         tabBarStyle: {
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.outlineVariant,
           borderTopWidth: 1,
+          height: 68,
+          paddingTop: 7,
+          paddingBottom: 7,
         },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
-        tabBarIcon: ({ focused, color, size }) => (
-          <Icon
-            source={TAB_ICONS[route.name][focused ? 0 : 1]}
-            color={color}
-            size={size + 2}
-          />
-        ),
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
+        tabBarItemStyle: { borderRadius: 14, marginHorizontal: 3 },
+        tabBarIcon: TAB_ICON_RENDERERS[route.name],
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Transactions" component={TransactionsScreen} />
-      <Tab.Screen name="Budgets" component={BudgetsScreen} />
-      <Tab.Screen
-        name="Chat"
-        component={ChatScreen}
-        options={{ title: 'AI Chat' }}
-      />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Assistant" component={ChatScreen} />
+      <Tab.Screen name="Activity" component={TransactionsScreen} />
+      <Tab.Screen name="Goals" component={GoalsScreen} />
+      <Tab.Screen name="Safety" component={SafetyScreen} />
     </Tab.Navigator>
   );
 }
@@ -117,6 +148,33 @@ export default function RootNavigator() {
             component={EditProfileScreen}
             options={{
               title: 'Edit profile',
+              headerStyle: { backgroundColor: theme.colors.surface },
+              headerTintColor: theme.colors.onSurface,
+            }}
+          />
+          <MainStack.Screen
+            name="Profile"
+            component={ProfileScreen}
+            options={{
+              title: 'Profile & settings',
+              headerStyle: { backgroundColor: theme.colors.surface },
+              headerTintColor: theme.colors.onSurface,
+            }}
+          />
+          <MainStack.Screen
+            name="Budgets"
+            component={BudgetsScreen}
+            options={{
+              title: 'Monthly budgets',
+              headerStyle: { backgroundColor: theme.colors.surface },
+              headerTintColor: theme.colors.onSurface,
+            }}
+          />
+          <MainStack.Screen
+            name="Accounts"
+            component={AccountsScreen}
+            options={{
+              title: 'Accounts & balances',
               headerStyle: { backgroundColor: theme.colors.surface },
               headerTintColor: theme.colors.onSurface,
             }}

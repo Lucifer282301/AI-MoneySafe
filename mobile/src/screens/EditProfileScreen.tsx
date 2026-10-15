@@ -106,22 +106,43 @@ export default function EditProfileScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: theme.colors.background }}
+      style={[
+        styles.screen,
+        { backgroundColor: theme.dark ? theme.colors.background : '#F7F6F1' },
+      ]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.hero,
+            { backgroundColor: theme.dark ? '#18372F' : '#123B30' },
+          ]}
+        >
           <Avatar.Text
             label={(cleanName || user?.name || '?').slice(0, 1).toUpperCase()}
-            size={72}
-            color={theme.colors.onPrimary}
+            size={64}
+            color={theme.dark ? '#18372F' : '#123B30'}
+            style={{ backgroundColor: theme.dark ? '#9ADFC0' : '#BDE8D0' }}
           />
+          <Text variant="titleLarge" style={styles.heroTitle}>
+            Your account
+          </Text>
+          <Text variant="bodyMedium" style={styles.heroCopy}>
+            Keep your contact details current and manage your sign-in password.
+          </Text>
         </View>
 
         <SectionCard title="Your details">
+          <Text
+            variant="bodySmall"
+            style={[styles.note, { color: theme.colors.onSurfaceVariant }]}
+          >
+            These details identify your MoneySafe account.
+          </Text>
           <TextInput
             label="Name"
             mode="outlined"
@@ -177,6 +198,12 @@ export default function EditProfileScreen() {
         </SectionCard>
 
         <SectionCard title="Change password" style={styles.second}>
+          <Text
+            variant="bodySmall"
+            style={[styles.note, { color: theme.colors.onSurfaceVariant }]}
+          >
+            Choose a password with at least 8 characters.
+          </Text>
           <TextInput
             label="Current password"
             mode="outlined"
@@ -243,10 +270,23 @@ export default function EditProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
-  header: { alignItems: 'center', marginBottom: 16 },
+  hero: {
+    alignItems: 'center',
+    borderRadius: 26,
+    padding: 24,
+    marginBottom: 18,
+  },
+  heroTitle: { color: '#FFFFFF', fontWeight: '700', marginTop: 14 },
+  heroCopy: {
+    color: 'rgba(255,255,255,0.76)',
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 21,
+  },
   second: { marginTop: 16 },
   input: { marginTop: 12 },
-  note: { marginTop: 12, marginBottom: 8 },
+  note: { marginBottom: 12, lineHeight: 20 },
   btn: { paddingVertical: 6 },
 });

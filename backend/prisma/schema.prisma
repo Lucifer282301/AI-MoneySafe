@@ -22,81 +22,147 @@ enum Category {
     OTHER
 }
 
-model User {
-    id        String  @id @default(cuid())
-    name      String
-    email     String  @unique
-    password  String // bcrypt hash, never plain text
-    currency  String  @default("INR") // ISO 4217 code used for display
-    avatarUrl String?
-    pushToken String? @unique
+enum AccountType {
+    CHECKING
+    SAVINGS
+}
 
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+// MANUAL = typed or scanned by the user. LINKED = imported from a bank or card feed.
+enum TxSource {
+    MANUAL
+    LINKED
+}
+
+// NONE: normal. PENDING: paused for the user to review. CONFIRMED: user said "I recognize it".
+// DISPUTED: user said "This wasn't me". PENDING and DISPUTED payments never count in totals.
+enum ReviewStatus {
+    NONE
+    PENDING
+    CONFIRMED
+    DISPUTED
+}
+
+enum RiskLevel {
+    MEDIUM
+    HIGH
+}
+
+model User {
+    id           String   @id @default(cuid())
+    name         String
+    email        String   @unique
+    password     String // bcrypt hash, never plain text
+    currency     String   @default("INR") // ISO 4217 code used for display
+    avatarUrl    String?
+    safetyBuffer Float    @default(1000) // money "Safe to spend" always keeps aside
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
 
     transactions  Transaction[]
     budgets       Budget[]
+    accounts      Account[]
+    goals         Goal[]
     refreshTokens RefreshToken[]
     deviceTokens  DeviceToken[]
 
     @@map("users")
 }
 
+model Account {
+    id        String      @id @default(cuid())
+    name      String
+    type      AccountType
+    balance   Float       @default(0)
+    createdAt DateTime    @default(now())
+    updatedAt DateTime    @updatedAt
+
+    userId        String
+    user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+    transactions  Transaction[]
+    contributions GoalContribution[]
+
+    @@index([userId])
+    @@map("accounts")
+}
+
 model Transaction {
-    id       String @id @default(cuid())
-    merchant String
-    amount   Float
+    id            String          @id @default(cuid())
+    merchant      String
+    amount        Float
+    category      Category
+    type          TransactionType @default(DEBIT)
+    note          String?
+    date          DateTime // stored as UTC midnight of the chosen day
+    receiptUrl    String?
+    paymentMethod String? // for example "Visa ending 4321"
+    location      String?
+    source        TxSource        @default(MANUAL)
+    reviewStatus  ReviewStatus    @default(NONE)
+    riskLevel     RiskLevel?
+    flagReasons   String[]        @default([]) // NEW_MERCHANT, NEW_LOCATION, HIGH_AMOUNT
+    createdAt     DateTime        @default(now())
+    updatedAt     DateTime        @updatedAt
 
-    currency     String @default("INR") // Original transaction currency
-    amountBase   Float? // Amount converted to user's base currency
-    exchangeRate Float? @default(1.0) // Original currency -> base currency rate
-
-    category   Category
-    type       TransactionType @default(DEBIT)
-    note       String?
-    date       DateTime // stored as UTC midnight of the chosen day
-    receiptUrl String?
-
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    userId String
-    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId    String
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    accountId String?
+    account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
     @@index([userId, date])
     @@index([userId, category])
+    @@index([userId, reviewStatus])
     @@map("transactions")
 }
 
+// A limit that applies from `period` (YYYY-MM) onwards, until a later period overrides it.
 model Budget {
     id        String   @id @default(cuid())
     category  Category
-    limit     Float
+    limit     Float // 0 means "no limit from this period on"
+    period    String   @default("2000-01")
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
     userId String
     user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    alerts BudgetAlert[]
-
-    @@unique([userId, category]) // one budget per category per user
+    @@unique([userId, category, period])
     @@map("budgets")
 }
 
-model BudgetAlert {
+model Goal {
+    id                  String    @id @default(cuid())
+    name                String
+    targetAmount        Float
+    savedAmount         Float     @default(0)
+    monthlyContribution Float     @default(0) // the plan, never moved automatically
+    contributionDay     Int       @default(15)
+    targetDate          DateTime?
+    priority            Boolean   @default(false)
+    icon                String    @default("target")
+    createdAt           DateTime  @default(now())
+    updatedAt           DateTime  @updatedAt
+
+    userId        String
+    user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+    contributions GoalContribution[]
+
+    @@index([userId])
+    @@map("goals")
+}
+
+model GoalContribution {
     id        String   @id @default(cuid())
-    budgetId  String
-    threshold Int
-    month     String
-    sentAt    DateTime @default(now())
+    amount    Float
     createdAt DateTime @default(now())
 
-    budget Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+    goalId    String
+    goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+    accountId String?
+    account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
-    @@unique([budgetId, threshold, month])
-    @@index([budgetId])
-    @@map("budget_alerts")
+    @@index([goalId, createdAt])
+    @@map("goal_contributions")
 }
 
 model RefreshToken {
